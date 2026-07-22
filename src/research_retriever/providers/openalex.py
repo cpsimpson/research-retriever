@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from typing import Any
+import urllib.parse
 
 from research_retriever.http import JsonHttpClient
 from research_retriever.models import (
@@ -45,11 +46,15 @@ class OpenAlexProvider:
         return [self.parse_work(item, self._source_for(item)) for item in response.get("results", [])]
 
     def get_work(self, identifier: str) -> Paper:
+        encoded = urllib.parse.quote(identifier, safe="")
         response = self.client.get(
-            f"{self.base_url}/works/{identifier}",
+            f"{self.base_url}/works/{encoded}",
             {"api_key": self.api_key, "mailto": self.mailto},
         )
         return self.parse_work(response, self._source_for(response))
+
+    def get_work_by_doi(self, doi: str) -> Paper:
+        return self.get_work(f"https://doi.org/{doi}")
 
     def references(self, paper: Paper) -> list[Paper]:
         openalex_id = paper.external_ids.get("openalex")
@@ -201,4 +206,3 @@ def _review_status(work_type: WorkType) -> ReviewStatus:
 def _chunks(values: list[str], size: int) -> Iterable[list[str]]:
     for start in range(0, len(values), size):
         yield values[start : start + size]
-

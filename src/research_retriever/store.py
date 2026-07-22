@@ -162,6 +162,21 @@ class PaperStore:
                 ),
             )
 
+    def record_topic_match(
+        self, paper_key: str, topic_id: str, relevance: float | None, explanation: str
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO topic_matches(paper_key, topic_id, relevance, explanation)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(paper_key, topic_id) DO UPDATE SET
+                    relevance = excluded.relevance,
+                    explanation = excluded.explanation
+                """,
+                (paper_key, topic_id, relevance, explanation),
+            )
+
     def relationships_from(self, key: str) -> list[PaperRelationship]:
         with self.connect() as connection:
             rows = connection.execute(
@@ -178,6 +193,19 @@ class PaperStore:
             )
             for row in rows
         ]
+
+    def related_papers(self, key: str) -> dict[str, Paper]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT p.canonical_key, p.record_json
+                FROM relationships r
+                JOIN papers p ON p.canonical_key = r.target_key
+                WHERE r.source_key = ?
+                """,
+                (key,),
+            ).fetchall()
+        return {row["canonical_key"]: Paper.from_json(row["record_json"]) for row in rows}
 
     def set_reading_status(self, key: str, status: ReadingStatus) -> Paper:
         paper = self.get(key)
@@ -199,6 +227,64 @@ class PaperStore:
                 (limit,),
             ).fetchall()
         return [Paper.from_json(row["record_json"]) for row in rows]
+
+    def all_papers(self, limit: int | None = None) -> list[Paper]:
+        query = "SELECT record_json FROM papers ORDER BY created_at"
+        params: tuple[int, ...] = ()
+        if limit is not None:
+            query += " LIMIT ?"
+            params = (limit,)
+        with self.connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [Paper.from_json(row["record_json"]) for row in rows]
+
+    def roundup_candidates(self, limit: int, backlog_fraction: float) -> list[Paper]:
+        backlog_limit = min(limit, max(0, round(limit * backlog_fraction)))
+        new_limit = limit - backlog_limit
+        base = """
+            SELECT p.record_json FROM papers p
+            WHERE p.reading_status IN ('unread', 'queued')
+              AND p.record_status != 'retracted'
+              AND p.canonical_key NOT IN (
+                  SELECT paper_key FROM roundup_appearances
+              )
+              AND p.origin != 'cited_reference'
+        """
+        order = """
+            ORDER BY CASE p.reading_status WHEN 'queued' THEN 0 ELSE 1 END,
+                     p.publication_year DESC NULLS LAST,
+                     p.created_at
+            LIMIT ?
+        """
+        with self.connect() as connection:
+            backlog = connection.execute(
+                base + " AND p.origin = 'manual_zotero' " + order, (backlog_limit,)
+            ).fetchall()
+            fresh = connection.execute(
+                base + " AND p.origin != 'manual_zotero' " + order, (new_limit,)
+            ).fetchall()
+            missing = limit - len(backlog) - len(fresh)
+            if missing > 0:
+                selected = {row["record_json"] for row in [*backlog, *fresh]}
+                spill = connection.execute(base + order, (limit + missing,)).fetchall()
+                for row in spill:
+                    if row["record_json"] not in selected:
+                        fresh.append(row)
+                        selected.add(row["record_json"])
+                        missing -= 1
+                        if missing == 0:
+                            break
+        return [Paper.from_json(row["record_json"]) for row in [*fresh, *backlog]][:limit]
+
+    def record_roundup(self, roundup_date: str, papers: list[Paper]) -> None:
+        with self.connect() as connection:
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO roundup_appearances(paper_key, roundup_date, position)
+                VALUES (?, ?, ?)
+                """,
+                [(paper.canonical_key, roundup_date, position) for position, paper in enumerate(papers, 1)],
+            )
 
     def set_sync_state(self, key: str, value: str) -> None:
         with self.connect() as connection:

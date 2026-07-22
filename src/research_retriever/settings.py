@@ -37,10 +37,17 @@ class ZoteroSettings:
 class ProviderSettings:
     email: str
     openalex_api_key_env: str = "OPENALEX_API_KEY"
+    analysis_provider: str = "openai"
+    analysis_api_key_env: str = "OPENAI_API_KEY"
+    analysis_model: str = "gpt-5.6-luna"
 
     @property
     def openalex_api_key(self) -> str:
         return os.environ.get(self.openalex_api_key_env, "")
+
+    @property
+    def analysis_api_key(self) -> str:
+        return os.environ.get(self.analysis_api_key_env, "")
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +117,9 @@ def load_settings(path: Path | str | None = None) -> Settings:
             openalex_api_key_env=providers.get(
                 "openalex_api_key_env", "OPENALEX_API_KEY"
             ),
+            analysis_provider=providers.get("analysis_provider", "openai"),
+            analysis_api_key_env=providers.get("analysis_api_key_env", "OPENAI_API_KEY"),
+            analysis_model=providers.get("analysis_model", "gpt-5.6-luna"),
         ),
         topics=tuple(
             TopicSettings(
@@ -146,6 +156,9 @@ references_collection = "Research Retriever/References"
 [providers]
 email = "{email}"
 openalex_api_key_env = "OPENALEX_API_KEY"
+analysis_provider = "openai"
+analysis_api_key_env = "OPENAI_API_KEY"
+analysis_model = "gpt-5.6-luna"
 
 [[topics]]
 id = "example-topic"
@@ -162,4 +175,3 @@ def _required(mapping: dict[str, Any], key: str) -> Any:
     if value is None or value == "":
         raise ValueError(f"Missing required configuration value: {key}")
     return value
-
