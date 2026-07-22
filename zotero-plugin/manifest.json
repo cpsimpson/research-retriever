@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "Research Retriever Full Text",
+  "version": "0.1.0",
+  "description": "Finds available full text for items created by Research Retriever.",
+  "homepage_url": "https://github.com/cpsimpson/research-retriever",
+  "applications": {
+    "zotero": {
+      "id": "research-retriever-full-text@cpsimpson",
+      "strict_min_version": "7.0",
+      "strict_max_version": "10.0.*"
+    }
+  }
+}

@@ -11,4 +11,3 @@ build/
 .env
 config.toml
 *.sqlite3
-

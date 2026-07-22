@@ -197,6 +197,32 @@ Force a refreshed analysis and note:
 research-retriever analyze "doi:10.1234/example"
 ```
 
+## Automatic full-text retrieval
+
+Research Retriever creates Zotero items through the Web API, which cannot invoke Zotero Desktop's
+**Find Available PDF** command. The optional companion plugin watches newly added items carrying the
+`rr:managed` tag and asks Zotero Desktop to find available files after they sync locally.
+
+Build the plugin:
+
+```console
+python scripts/build_zotero_plugin.py
+```
+
+In Zotero, open **Tools → Plugins**, choose **Install Plugin From File**, and select:
+
+```text
+dist/research-retriever-full-text.xpi
+```
+
+Keep Zotero running or open it later and allow synchronization to complete. The plugin processes only
+new Research Retriever items, batches items arriving in the same sync, and skips records that already
+have a PDF. It does not read or submit school credentials.
+
+Zotero's retrieval can use open-access sources and direct institutional access available to the
+desktop application. Campus-network or system-wide VPN access generally works; browser-only proxy
+sessions may not. Retrieval success also depends on the DOI/URL, publisher, resolver, and rate limits.
+
 Commands return a non-zero status on configuration, connectivity, or write failures, making them
 suitable for `launchd`, cron, or another scheduler. Phase one does not install a scheduler itself.
 
