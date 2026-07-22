@@ -53,11 +53,8 @@ def test_initial_library_is_cataloged_then_processed_gradually(tmp_path, monkeyp
     assert workflow.process_new_zotero_items(result, "My interests") == []
     assert analyzer.calls == 0
 
-    papers, roundup_path = workflow.create_daily_roundup(
-        date(2026, 7, 22), 1, 1.0, "My interests"
-    )
+    papers, roundup_path = workflow.create_daily_roundup(date(2026, 7, 22), 1, 1.0, "My interests")
     assert len(papers) == 1
     assert analyzer.calls == 1
     assert roundup_path.exists()
     assert (tmp_path / "vault" / papers[0].obsidian_path).exists()
-

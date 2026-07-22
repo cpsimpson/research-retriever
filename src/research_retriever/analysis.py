@@ -29,15 +29,21 @@ class PaperAnalysis:
 
 
 class Analyzer(Protocol):
-    def analyze(self, paper: Paper, research_interest: str, source_text: str | None = None) -> PaperAnalysis:
+    def analyze(
+        self, paper: Paper, research_interest: str, source_text: str | None = None
+    ) -> PaperAnalysis:
         """Analyze a paper using only the supplied source material."""
 
 
 class PendingAnalyzer:
-    def analyze(self, paper: Paper, research_interest: str, source_text: str | None = None) -> PaperAnalysis:
+    def analyze(
+        self, paper: Paper, research_interest: str, source_text: str | None = None
+    ) -> PaperAnalysis:
         basis = "full_text" if source_text else "abstract_only"
         return PaperAnalysis(
-            summary="Analysis pending. Configure an analysis provider to generate a grounded summary.",
+            summary=(
+                "Analysis pending. Configure an analysis provider to generate a grounded summary."
+            ),
             why_interesting=(
                 f"This paper matched the configured research interest: {research_interest}"
                 if research_interest
@@ -72,7 +78,9 @@ class OpenAIAnalyzer:
             default_headers={"Authorization": f"Bearer {api_key}"},
         )
 
-    def analyze(self, paper: Paper, research_interest: str, source_text: str | None = None) -> PaperAnalysis:
+    def analyze(
+        self, paper: Paper, research_interest: str, source_text: str | None = None
+    ) -> PaperAnalysis:
         material = source_text or paper.abstract
         if not material:
             return PendingAnalyzer().analyze(paper, research_interest, source_text)
@@ -85,8 +93,9 @@ class OpenAIAnalyzer:
                 {
                     "role": "system",
                     "content": (
-                        "Analyze research papers conservatively. Use only the supplied source text. "
-                        "Do not infer methods, findings, sample characteristics, or causal claims that "
+                        "Analyze research papers conservatively. Use only the supplied "
+                        "source text. Do not infer methods, findings, sample characteristics, "
+                        "or causal claims that "
                         "are not explicit. Put missing or uncertain information in limitations."
                     ),
                 },
@@ -148,7 +157,7 @@ def _analysis_prompt(paper: Paper, interest: str, material: str, basis: str) -> 
 Publication type: {paper.work_type.value}
 Review status: {paper.review_status.value}
 Analysis basis: {basis}
-Researcher's interest: {interest or 'Not specified'}
+Researcher's interest: {interest or "Not specified"}
 
 Source text:
 {material}
@@ -169,4 +178,3 @@ def _response_text(response: dict[str, Any]) -> str:
             if content.get("type") == "output_text" and content.get("text"):
                 return content["text"]
     raise RuntimeError("Analysis provider returned no structured text output")
-

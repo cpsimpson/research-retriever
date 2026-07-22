@@ -53,4 +53,3 @@ def test_zotero_payload_marks_tool_provenance(monkeypatch) -> None:
         "rr:type:journal_article",
     }
     assert payload["DOI"] == "10.1/result"
-

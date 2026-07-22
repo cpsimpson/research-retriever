@@ -114,9 +114,7 @@ def load_settings(path: Path | str | None = None) -> Settings:
         ),
         providers=ProviderSettings(
             email=_required(providers, "email"),
-            openalex_api_key_env=providers.get(
-                "openalex_api_key_env", "OPENALEX_API_KEY"
-            ),
+            openalex_api_key_env=providers.get("openalex_api_key_env", "OPENALEX_API_KEY"),
             analysis_provider=providers.get("analysis_provider", "openai"),
             analysis_api_key_env=providers.get("analysis_api_key_env", "OPENAI_API_KEY"),
             analysis_model=providers.get("analysis_model", "gpt-5.6-luna"),

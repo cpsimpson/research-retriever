@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -65,14 +64,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     daily = subparsers.add_parser("daily", help="Create a daily reading round-up.")
     daily.add_argument("--date", type=date.fromisoformat, default=None, help="Date in YYYY-MM-DD.")
-    daily.add_argument("--limit", type=int, default=None, help="Override the configured paper count.")
+    daily.add_argument(
+        "--limit", type=int, default=None, help="Override the configured paper count."
+    )
 
     harvest = subparsers.add_parser(
         "harvest-references", help="Import references cited by a paper."
     )
     harvest.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
 
-    analyze = subparsers.add_parser("analyze", help="Analyze one cataloged paper and write its note.")
+    analyze = subparsers.add_parser(
+        "analyze", help="Analyze one cataloged paper and write its note."
+    )
     analyze.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
 
     versions = subparsers.add_parser(
@@ -192,7 +195,10 @@ def _sync(runtime: Runtime, args: argparse.Namespace) -> int:
         f"{result.tool_managed} tool-managed."
     )
     if result.initial_import:
-        print("Initial backlog cataloged without bulk analysis; daily round-ups will process it gradually.")
+        print(
+            "Initial backlog cataloged without bulk analysis; daily round-ups "
+            "will process it gradually."
+        )
     else:
         print(f"Processed {len(processed)} new or changed item(s) into the note workflow.")
     return 0
@@ -232,8 +238,11 @@ def _harvest_references(runtime: Runtime, args: argparse.Namespace) -> int:
     paper = _paper(runtime, args.paper)
     if not paper.external_ids.get("openalex"):
         paper = runtime.workflow.analyze_and_write(paper, _combined_interest(runtime.settings))
-    created = runtime.workflow.harvest_references(paper)
-    print(f"Added {len(created)} previously unknown reference(s) to Zotero.")
+    result = runtime.workflow.harvest_references(paper)
+    print(
+        f"Retrieved {result.retrieved} unique reference(s); added {result.created} to Zotero "
+        f"and linked {result.already_present} existing item(s)."
+    )
     return 0
 
 

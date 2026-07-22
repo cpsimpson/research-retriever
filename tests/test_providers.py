@@ -49,13 +49,7 @@ def test_openalex_parser_exposes_venue_signals() -> None:
 
 def test_crossref_version_relationships_support_preprint_links() -> None:
     client = FakeClient(
-        {
-            "message": {
-                "relation": {
-                    "is-preprint-of": [{"id": "10.1/PUBLISHED", "id-type": "doi"}]
-                }
-            }
-        }
+        {"message": {"relation": {"is-preprint-of": [{"id": "10.1/PUBLISHED", "id-type": "doi"}]}}}
     )
     provider = CrossrefProvider("researcher@example.test", client=client)
     relationships = provider.version_relationships("10.1/preprint")
@@ -64,3 +58,27 @@ def test_crossref_version_relationships_support_preprint_links() -> None:
     assert relationships[0].target_key == "doi:10.1/published"
     assert relationships[0].verified is True
 
+
+def test_crossref_reference_fallback_preserves_unstructured_citations() -> None:
+    client = FakeClient(
+        {
+            "message": {
+                "reference": [
+                    {
+                        "DOI": "10.2/REFERENCE",
+                        "article-title": "A cited paper",
+                        "author": "Author, A.",
+                        "year": "2020",
+                    },
+                    {"unstructured": "B. Author. An older result. 1999."},
+                ]
+            }
+        }
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert len(references) == 2
+    assert references[0].doi == "10.2/reference"
+    assert references[0].publication_year == 2020
+    assert references[1].title.startswith("B. Author")

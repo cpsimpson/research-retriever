@@ -15,7 +15,6 @@ from research_retriever.models import (
     RelationshipType,
 )
 
-
 GENERATED_START = "<!-- research-retriever:generated:start -->"
 GENERATED_END = "<!-- research-retriever:generated:end -->"
 MANAGED_PROPERTIES = {
@@ -101,7 +100,11 @@ class ObsidianWriter:
                     f"- **Reading status:** {paper.reading_status.value}",
                     f"- **Analysis basis:** {analysis.basis if analysis else 'not analyzed'}",
                     "",
-                    (analysis.summary if analysis else paper.abstract or "No summary is available."),
+                    (
+                        analysis.summary
+                        if analysis
+                        else paper.abstract or "No summary is available."
+                    ),
                     "",
                 ]
             )
@@ -144,17 +147,28 @@ def _generated_section(
         if paper.zotero_key
         else "Not yet linked to Zotero"
     )
+    h_index = paper.venue.h_index if paper.venue.h_index is not None else "Unknown"
+    mean_citedness = (
+        paper.venue.two_year_mean_citedness
+        if paper.venue.two_year_mean_citedness is not None
+        else "Unknown"
+    )
     venue_lines = [
         f"- **Venue:** {paper.venue.name or 'Unknown'}",
         f"- **Venue type:** {paper.venue.venue_type or 'Unknown'}",
         f"- **In DOAJ:** {_yes_no_unknown(paper.venue.is_in_doaj)}",
         f"- **Open access:** {_yes_no_unknown(paper.venue.is_open_access)}",
-        f"- **Venue h-index:** {paper.venue.h_index if paper.venue.h_index is not None else 'Unknown'}",
-        "- **Two-year mean citedness:** "
-        f"{paper.venue.two_year_mean_citedness if paper.venue.two_year_mean_citedness is not None else 'Unknown'}",
+        f"- **Venue h-index:** {h_index}",
+        f"- **Two-year mean citedness:** {mean_citedness}",
     ]
-    methods = "\n".join(f"- {method}" for method in analysis.methods) or "- Not established from the available text."
-    findings = "\n".join(f"- {finding}" for finding in analysis.key_findings) or "- Not established from the available text."
+    methods = (
+        "\n".join(f"- {method}" for method in analysis.methods)
+        or "- Not established from the available text."
+    )
+    findings = (
+        "\n".join(f"- {finding}" for finding in analysis.key_findings)
+        or "- Not established from the available text."
+    )
     limitations = "\n".join(f"- {item}" for item in analysis.limitations) or "- None recorded."
     reference_lines = []
     version_lines = []
@@ -167,24 +181,27 @@ def _generated_section(
             label = relation.relationship.value.replace("_", " ")
             version_lines.append(f"{line} — {label}")
     references = "\n".join(reference_lines) or "- References have not been harvested."
-    versions = "\n".join(version_lines) or "- No related publication versions are currently recorded."
+    versions = (
+        "\n".join(version_lines) or "- No related publication versions are currently recorded."
+    )
     return f"""{GENERATED_START}
 {zotero_link}
 
 ## Suitability for citation
 
-- **Publication type:** {paper.work_type.value.replace('_', ' ')}
-- **Peer-review indication:** {paper.review_status.value.replace('_', ' ')}
+- **Publication type:** {paper.work_type.value.replace("_", " ")}
+- **Peer-review indication:** {paper.review_status.value.replace("_", " ")}
 - **Record status:** {paper.record_status.value}
-- **Best available version:** {paper.best_available_version or 'Unknown'}
-- **Analysis basis:** {analysis.basis.replace('_', ' ')}
+- **Best available version:** {paper.best_available_version or "Unknown"}
+- **Analysis basis:** {analysis.basis.replace("_", " ")}
 - **Analysis confidence:** {analysis.confidence}
 
 ## Venue signals
 
 {chr(10).join(venue_lines)}
 
-> Venue indicators are context, not a universal quality score. Citation practices and venue norms vary by field.
+> Venue indicators are context, not a universal quality score. Citation practices and
+> venue norms vary by field.
 
 ## Related publication versions
 
@@ -204,7 +221,7 @@ def _generated_section(
 
 ## Why this may be interesting
 
-{analysis.why_interesting or 'No personalized relevance assessment is available.'}
+{analysis.why_interesting or "No personalized relevance assessment is available."}
 
 ## Analysis limitations
 
@@ -222,9 +239,7 @@ def _new_note(properties: dict[str, str], paper: Paper, generated: str) -> str:
 
 
 def _replace_generated(existing: str, generated: str) -> str:
-    pattern = re.compile(
-        rf"{re.escape(GENERATED_START)}.*?{re.escape(GENERATED_END)}", re.DOTALL
-    )
+    pattern = re.compile(rf"{re.escape(GENERATED_START)}.*?{re.escape(GENERATED_END)}", re.DOTALL)
     if pattern.search(existing):
         return pattern.sub(generated, existing, count=1)
     return existing.rstrip() + "\n\n" + generated + "\n"

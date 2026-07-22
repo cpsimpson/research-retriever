@@ -19,7 +19,14 @@ class FakeClient:
             "basis": "abstract_only",
             "confidence": "medium",
         }
-        return {"output": [{"type": "message", "content": [{"type": "output_text", "text": json.dumps(result)}]}]}
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": json.dumps(result)}],
+                }
+            ]
+        }
 
 
 def test_pending_analysis_does_not_invent_findings() -> None:
@@ -37,4 +44,3 @@ def test_openai_analysis_uses_structured_output_and_disables_storage() -> None:
     assert result.methods == ["Survey"]
     assert client.payload["store"] is False
     assert client.payload["text"]["format"]["strict"] is True
-

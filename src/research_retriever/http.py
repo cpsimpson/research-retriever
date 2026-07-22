@@ -58,7 +58,9 @@ class JsonHttpClient:
                 retryable = exc.code in {429, 500, 502, 503, 504}
                 if not retryable or attempt == self.max_attempts - 1:
                     detail = exc.read().decode(errors="replace")[:500]
-                    raise HttpError(f"{request.method} {request.full_url}: {exc.code} {detail}") from exc
+                    raise HttpError(
+                        f"{request.method} {request.full_url}: {exc.code} {detail}"
+                    ) from exc
                 retry_after = exc.headers.get("Retry-After")
                 delay = float(retry_after) if retry_after and retry_after.isdigit() else 2**attempt
                 time.sleep(min(delay, 30))

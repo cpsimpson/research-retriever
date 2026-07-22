@@ -20,7 +20,6 @@ from research_retriever.models import (
 )
 from research_retriever.settings import ZoteroSettings
 
-
 READING_TAGS = {
     ReadingStatus.QUEUED: "rr:queued",
     ReadingStatus.READING: "rr:reading",
@@ -167,7 +166,9 @@ class ZoteroClient:
                 raise RuntimeError(f"Unable to create collection {'/'.join(traversed)}: {failed}")
             parent = _write_key(response, 0)
             if not parent:
-                raise RuntimeError(f"Zotero did not return a collection key for {'/'.join(traversed)}")
+                raise RuntimeError(
+                    f"Zotero did not return a collection key for {'/'.join(traversed)}"
+                )
         if parent is None:
             raise ValueError("Collection path cannot be empty")
         return parent
@@ -251,7 +252,9 @@ def paper_from_zotero(item: dict[str, Any]) -> Paper:
         work_type=work_type,
         review_status=_review_status(work_type),
         record_status=(
-            RecordStatus.RETRACTED if "retracted" in {str(tag).lower() for tag in tags} else RecordStatus.ACTIVE
+            RecordStatus.RETRACTED
+            if "retracted" in {str(tag).lower() for tag in tags}
+            else RecordStatus.ACTIVE
         ),
         reading_status=reading_status,
         origin=Origin.TOOL_ZOTERO if managed else Origin.MANUAL_ZOTERO,
@@ -279,7 +282,9 @@ def _author_payload(author: Author) -> dict[str, str]:
 
 
 def _from_zotero_type(item_type: str | None, tags: set[str | None]) -> WorkType:
-    tagged = next((tag.removeprefix("rr:type:") for tag in tags if tag and tag.startswith("rr:type:")), None)
+    tagged = next(
+        (tag.removeprefix("rr:type:") for tag in tags if tag and tag.startswith("rr:type:")), None
+    )
     if tagged:
         try:
             return WorkType(tagged)

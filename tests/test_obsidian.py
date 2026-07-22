@@ -51,4 +51,3 @@ def test_roundup_labels_manual_zotero_items(tmp_path) -> None:
     path = writer.write_roundup([paper], date(2026, 7, 22))
     assert "Added manually in Zotero" in path.read_text()
     assert "Worth revisiting" in path.read_text()
-

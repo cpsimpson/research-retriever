@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import urllib.parse
 from collections.abc import Iterable
 from typing import Any
-import urllib.parse
 
 from research_retriever.http import JsonHttpClient
 from research_retriever.models import (
@@ -43,7 +43,9 @@ class OpenAlexProvider:
                 "mailto": self.mailto,
             },
         )
-        return [self.parse_work(item, self._source_for(item)) for item in response.get("results", [])]
+        return [
+            self.parse_work(item, self._source_for(item)) for item in response.get("results", [])
+        ]
 
     def get_work(self, identifier: str) -> Paper:
         encoded = urllib.parse.quote(identifier, safe="")
@@ -134,7 +136,8 @@ class OpenAlexProvider:
             title=work.get("display_name") or work.get("title") or "Untitled",
             authors=[
                 Author(
-                    name=(entry.get("author") or {}).get("display_name") or entry.get("raw_author_name"),
+                    name=(entry.get("author") or {}).get("display_name")
+                    or entry.get("raw_author_name"),
                     orcid=(entry.get("author") or {}).get("orcid"),
                 )
                 for entry in work.get("authorships", [])
@@ -151,7 +154,11 @@ class OpenAlexProvider:
             record_status=record_status,
             venue=venue,
             external_ids=ids,
-            topics=[topic.get("display_name") for topic in work.get("topics", []) if topic.get("display_name")],
+            topics=[
+                topic.get("display_name")
+                for topic in work.get("topics", [])
+                if topic.get("display_name")
+            ],
             cited_by_count=work.get("cited_by_count"),
             open_access_status=(work.get("open_access") or {}).get("oa_status"),
             best_available_version=work.get("best_open_version"),

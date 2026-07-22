@@ -10,7 +10,6 @@ from research_retriever.models import (
     Origin,
     Paper,
     PaperRelationship,
-    ReadingStatus,
     RelationshipType,
 )
 from research_retriever.obsidian import ObsidianWriter
@@ -29,6 +28,14 @@ class SyncResult:
     latest_zotero_version: int = 0
     initial_import: bool = False
     papers: list[Paper] | None = None
+
+
+@dataclass(slots=True)
+class HarvestResult:
+    retrieved: int
+    created: int
+    already_present: int
+    papers: list[Paper]
 
 
 class ResearchWorkflow:
@@ -67,9 +74,7 @@ class ResearchWorkflow:
                 result.latest_zotero_version, paper.zotero_version or 0
             )
         if result.latest_zotero_version:
-            self.store.set_sync_state(
-                "zotero_library_version", str(result.latest_zotero_version)
-            )
+            self.store.set_sync_state("zotero_library_version", str(result.latest_zotero_version))
         return result
 
     def discover_topic(self, topic: TopicSettings, limit: int = 25) -> list[Paper]:
@@ -131,7 +136,9 @@ class ResearchWorkflow:
             self.store.upsert(paper)
         return paper
 
-    def process_new_zotero_items(self, result: SyncResult, research_interest: str = "") -> list[Paper]:
+    def process_new_zotero_items(
+        self, result: SyncResult, research_interest: str = ""
+    ) -> list[Paper]:
         if result.initial_import:
             return []
         return [
@@ -152,7 +159,9 @@ class ResearchWorkflow:
         path = self.obsidian.write_roundup(processed, roundup_date) if self.obsidian else None
         return processed, path
 
-    def check_updated_versions(self, paper: Paper, collection_key: str | None = None) -> list[Paper]:
+    def check_updated_versions(
+        self, paper: Paper, collection_key: str | None = None
+    ) -> list[Paper]:
         if self.crossref is None or self.openalex is None or not paper.doi:
             return []
         versions: list[Paper] = []
@@ -186,31 +195,54 @@ class ResearchWorkflow:
             self.store.upsert(paper)
         return versions
 
-    def harvest_references(self, paper: Paper) -> list[Paper]:
-        if self.openalex is None:
-            raise RuntimeError("OpenAlex must be configured to harvest references")
-        references = self.openalex.references(paper)
-        collection = self.zotero.ensure_collection_path(
-            self.zotero.settings.references_collection
-        )
-        created: list[Paper] = []
-        linked: list[Paper] = []
+    def harvest_references(self, paper: Paper) -> HarvestResult:
+        candidates: list[Paper] = []
+        if self.openalex and paper.external_ids.get("openalex"):
+            candidates.extend(self.openalex.references(paper))
+        if self.crossref and paper.doi:
+            candidates.extend(self.crossref.references(paper.doi))
+        if not candidates:
+            raise RuntimeError(
+                "No reference list was available from OpenAlex or Crossref for this paper"
+            )
+        unique: dict[str, Paper] = {}
+        for reference in candidates:
+            unique.setdefault(reference.canonical_key, reference)
+        references = list(unique.values())
+        collection = self.zotero.ensure_collection_path(self.zotero.settings.references_collection)
+        existing_by_key: dict[str, Paper] = {}
+        unknown: list[Paper] = []
         for reference in references:
             existing = self.store.get(reference.canonical_key)
             if existing and existing.zotero_key:
-                reference = existing
+                existing_by_key[reference.canonical_key] = existing
             else:
-                reference = self.zotero.create_papers([reference], collection)[0]
-                self.store.upsert(reference)
-                created.append(reference)
+                if self.openalex and reference.doi and not reference.external_ids.get("openalex"):
+                    try:
+                        reference = self.openalex.get_work_by_doi(reference.doi)
+                        reference.origin = Origin.CITED_REFERENCE
+                    except Exception:
+                        pass
+                unknown.append(reference)
+        created = self.zotero.create_papers(unknown, collection) if unknown else []
+        for reference in created:
+            self.store.upsert(reference)
+
+        linked: list[Paper] = []
+        for reference in references:
+            reference = existing_by_key.get(reference.canonical_key) or self.store.get(
+                reference.canonical_key
+            )
+            if reference is None:
+                continue
             linked.append(reference)
             self.store.add_relationship(
                 PaperRelationship(
                     source_key=paper.canonical_key,
                     target_key=reference.canonical_key,
                     relationship=RelationshipType.REFERENCES,
-                    evidence_source="OpenAlex referenced_works",
-                    verified=True,
+                    evidence_source=reference.discovered_by or "scholarly reference metadata",
+                    verified=bool(reference.doi or reference.external_ids.get("openalex")),
                 )
             )
         if paper.zotero_key:
@@ -224,7 +256,12 @@ class ResearchWorkflow:
                 self.store.relationships_from(paper.canonical_key),
                 self.store.related_papers(paper.canonical_key),
             )
-        return created
+        return HarvestResult(
+            retrieved=len(references),
+            created=len(created),
+            already_present=len(existing_by_key),
+            papers=linked,
+        )
 
 
 def _matches_terms(paper: Paper, include: tuple[str, ...], exclude: tuple[str, ...]) -> bool:

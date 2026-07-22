@@ -36,4 +36,3 @@ def test_relationships_are_idempotent(tmp_path) -> None:
     store.add_relationship(relationship)
     store.add_relationship(relationship)
     assert store.relationships_from(source.canonical_key) == [relationship]
-

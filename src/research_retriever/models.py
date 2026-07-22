@@ -131,7 +131,9 @@ class Paper:
                 return f"{namespace}:{value.lower()}"
         normalized = re.sub(r"[^a-z0-9]+", " ", self.title.lower()).strip()
         author = self.authors[0].name.lower() if self.authors else ""
-        digest = hashlib.sha256(f"{normalized}|{author}|{self.publication_year}".encode()).hexdigest()
+        digest = hashlib.sha256(
+            f"{normalized}|{author}|{self.publication_year}".encode()
+        ).hexdigest()
         return f"title:{digest[:24]}"
 
     def to_json(self) -> str:

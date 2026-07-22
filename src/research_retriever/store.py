@@ -10,7 +10,6 @@ from pathlib import Path
 
 from research_retriever.models import Paper, PaperRelationship, ReadingStatus, RelationshipType
 
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS papers (
     canonical_key TEXT PRIMARY KEY,
@@ -136,7 +135,8 @@ class PaperStore:
     def get(self, key: str) -> Paper | None:
         with self.connect() as connection:
             row = connection.execute(
-                "SELECT record_json FROM papers WHERE canonical_key = ? OR doi = ? OR zotero_key = ?",
+                """SELECT record_json FROM papers
+                   WHERE canonical_key = ? OR doi = ? OR zotero_key = ?""",
                 (key, key.removeprefix("doi:"), key),
             ).fetchone()
         return Paper.from_json(row["record_json"]) if row else None
@@ -180,7 +180,8 @@ class PaperStore:
     def relationships_from(self, key: str) -> list[PaperRelationship]:
         with self.connect() as connection:
             rows = connection.execute(
-                "SELECT * FROM relationships WHERE source_key = ? ORDER BY relationship, target_key",
+                """SELECT * FROM relationships
+                   WHERE source_key = ? ORDER BY relationship, target_key""",
                 (key,),
             ).fetchall()
         return [
@@ -283,7 +284,10 @@ class PaperStore:
                 INSERT OR IGNORE INTO roundup_appearances(paper_key, roundup_date, position)
                 VALUES (?, ?, ?)
                 """,
-                [(paper.canonical_key, roundup_date, position) for position, paper in enumerate(papers, 1)],
+                [
+                    (paper.canonical_key, roundup_date, position)
+                    for position, paper in enumerate(papers, 1)
+                ],
             )
 
     def set_sync_state(self, key: str, value: str) -> None:
@@ -291,12 +295,16 @@ class PaperStore:
             connection.execute(
                 """
                 INSERT INTO sync_state(key, value, updated_at) VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
                 """,
                 (key, value, datetime.now(UTC).isoformat()),
             )
 
     def get_sync_state(self, key: str) -> str | None:
         with self.connect() as connection:
-            row = connection.execute("SELECT value FROM sync_state WHERE key = ?", (key,)).fetchone()
+            row = connection.execute(
+                "SELECT value FROM sync_state WHERE key = ?", (key,)
+            ).fetchone()
         return row["value"] if row else None

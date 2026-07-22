@@ -25,4 +25,3 @@ interest = "It matters"
     assert settings.app.vault_path == Path(tmp_path / "vault")
     assert settings.zotero.api_key == "secret"
     assert settings.topics[0].query == "How does the topic work?"
-
