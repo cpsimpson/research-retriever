@@ -51,10 +51,11 @@ See [the architecture notes](docs/architecture.md) for the data flow and conflic
 - A Zotero account and a dedicated Web API key with read/write access to the target library
 - A free OpenAlex API key for discovery and citation-graph access
 - An Obsidian vault on the machine running the tool
-- Optional: an OpenAI API key for structured paper analysis
+- Optional: a local Ollama installation or an OpenAI API key for structured paper analysis
 
-OpenAI API access and a ChatGPT subscription are separate products. The analysis model is
-configurable; the sample currently uses `gpt-5.6-luna` for a high-volume, cost-sensitive workload.
+Ollama is the recommended no-per-request-fee option and keeps source text on the local machine. OpenAI API
+access and a ChatGPT subscription are separate products; OpenAI remains available as an optional
+separately billed provider.
 
 ## Install for development
 
@@ -83,6 +84,28 @@ export OPENAI_API_KEY="replace-with-an-openai-api-key"  # optional
 
 Never commit these values. For routine use, store them in the operating system's credential manager
 and expose them to the scheduled process at runtime.
+
+For local analysis, start Ollama and select an installed model:
+
+```toml
+[providers]
+analysis_provider = "ollama"
+analysis_model = "gemma4:31b"
+analysis_base_url = "http://127.0.0.1:11434"
+```
+
+No analysis API key is required. `research-retriever doctor` verifies both the Ollama service and
+the configured model. The native Ollama integration sends a JSON schema, disables streaming and
+model thinking output, and uses temperature zero for repeatable structured notes.
+
+To use the separately billed OpenAI API instead:
+
+```toml
+[providers]
+analysis_provider = "openai"
+analysis_model = "gpt-5.6-luna"
+analysis_api_key_env = "OPENAI_API_KEY"
+```
 
 Create a starter configuration:
 

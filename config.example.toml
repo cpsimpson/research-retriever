@@ -20,9 +20,10 @@ references_collection = "Research Retriever/References"
 # Used to identify responsible Crossref API traffic. OpenAlex uses its API key.
 email = "researcher@example.edu"
 openalex_api_key_env = "OPENALEX_API_KEY"
-analysis_provider = "openai"
-analysis_api_key_env = "OPENAI_API_KEY"
-analysis_model = "gpt-5.6-luna"
+analysis_provider = "ollama" # Use "openai" for the separately billed OpenAI API.
+analysis_model = "gemma4:12b"
+analysis_base_url = "http://127.0.0.1:11434"
+analysis_api_key_env = "OPENAI_API_KEY" # Used only when analysis_provider = "openai".
 
 [[topics]]
 id = "example-topic"

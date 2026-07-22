@@ -97,5 +97,9 @@ The analysis adapter receives the title, publication/review status, research-int
 available source text. Structured output requires summary, methods, findings, relevance, limitations,
 basis, and confidence. API-side response storage is disabled for the provided OpenAI adapter.
 
+The Ollama adapter uses the native local chat endpoint with the same JSON schema, deterministic
+generation settings, and no API credential. The provider is selected in configuration so generated
+note structure and preservation rules remain identical across local and hosted analysis.
+
 When only an abstract is available, the generated note states `abstract_only`. Missing methods or
 findings remain empty rather than being guessed.

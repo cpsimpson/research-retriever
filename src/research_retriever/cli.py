@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 
 from research_retriever import __version__
-from research_retriever.analysis import OpenAIAnalyzer, PendingAnalyzer
+from research_retriever.analysis import Analyzer, OllamaAnalyzer, OpenAIAnalyzer, PendingAnalyzer
 from research_retriever.models import ReadingStatus
 from research_retriever.obsidian import ObsidianWriter
 from research_retriever.providers import CrossrefProvider, OpenAlexProvider
@@ -32,6 +32,7 @@ class Runtime:
     zotero: ZoteroClient
     workflow: ResearchWorkflow
     obsidian: ObsidianWriter
+    analyzer: Analyzer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -134,20 +135,30 @@ def _runtime(config_path: Path | None) -> Runtime:
         else None
     )
     crossref = CrossrefProvider(settings.providers.email)
-    if settings.providers.analysis_provider == "openai" and settings.providers.analysis_api_key:
+    provider = settings.providers.analysis_provider.lower()
+    if provider == "ollama":
+        analyzer = OllamaAnalyzer(
+            settings.providers.analysis_model,
+            settings.providers.analysis_base_url,
+        )
+    elif provider == "openai" and settings.providers.analysis_api_key:
         analyzer = OpenAIAnalyzer(
             settings.providers.analysis_api_key,
             settings.providers.analysis_model,
         )
-    else:
+    elif provider in {"none", "disabled"} or (
+        provider == "openai" and not settings.providers.analysis_api_key
+    ):
         analyzer = PendingAnalyzer()
+    else:
+        raise ValueError(f"Unsupported analysis provider: {settings.providers.analysis_provider}")
     obsidian = ObsidianWriter(
         settings.app.vault_path,
         settings.app.notes_folder,
         settings.app.roundup_folder,
     )
     workflow = ResearchWorkflow(store, zotero, openalex, crossref, analyzer, obsidian)
-    return Runtime(settings, store, zotero, workflow, obsidian)
+    return Runtime(settings, store, zotero, workflow, obsidian, analyzer)
 
 
 def _init(args: argparse.Namespace) -> int:
@@ -179,10 +190,20 @@ def _doctor(runtime: Runtime, _args: argparse.Namespace) -> int:
         print(f"Zotero key: valid for user {key.get('userID', 'unknown')}")
     except Exception as exc:
         problems.append(f"Zotero connection failed: {exc}")
-    if not runtime.settings.providers.analysis_api_key:
+    if isinstance(runtime.analyzer, OllamaAnalyzer):
+        try:
+            runtime.analyzer.validate_model()
+            print(f"Analysis provider: Ollama ({runtime.analyzer.model})")
+        except Exception as exc:
+            problems.append(f"Ollama connection failed: {exc}")
+    elif isinstance(runtime.analyzer, PendingAnalyzer):
         print("Analysis provider: disabled; notes will show analysis pending")
     else:
-        print(f"Analysis provider: {runtime.settings.providers.analysis_provider}")
+        print(
+            "Analysis provider: "
+            f"{runtime.settings.providers.analysis_provider} "
+            f"({runtime.settings.providers.analysis_model})"
+        )
     if problems:
         for problem in problems:
             print(f"- {problem}")

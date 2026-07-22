@@ -40,6 +40,7 @@ class ProviderSettings:
     analysis_provider: str = "openai"
     analysis_api_key_env: str = "OPENAI_API_KEY"
     analysis_model: str = "gpt-5.6-luna"
+    analysis_base_url: str = "http://127.0.0.1:11434"
 
     @property
     def openalex_api_key(self) -> str:
@@ -118,6 +119,7 @@ def load_settings(path: Path | str | None = None) -> Settings:
             analysis_provider=providers.get("analysis_provider", "openai"),
             analysis_api_key_env=providers.get("analysis_api_key_env", "OPENAI_API_KEY"),
             analysis_model=providers.get("analysis_model", "gpt-5.6-luna"),
+            analysis_base_url=providers.get("analysis_base_url", "http://127.0.0.1:11434"),
         ),
         topics=tuple(
             TopicSettings(
@@ -157,6 +159,7 @@ openalex_api_key_env = "OPENALEX_API_KEY"
 analysis_provider = "openai"
 analysis_api_key_env = "OPENAI_API_KEY"
 analysis_model = "gpt-5.6-luna"
+analysis_base_url = "http://127.0.0.1:11434"
 
 [[topics]]
 id = "example-topic"

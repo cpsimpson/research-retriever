@@ -119,6 +119,80 @@ class OpenAIAnalyzer:
         return PaperAnalysis.from_dict(parsed)
 
 
+class OllamaAnalyzer:
+    def __init__(
+        self,
+        model: str,
+        base_url: str = "http://127.0.0.1:11434",
+        client: JsonHttpClient | None = None,
+    ) -> None:
+        if not model:
+            raise ValueError("An Ollama model is required")
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.client = client or JsonHttpClient(
+            user_agent="research-retriever/0.1",
+            timeout=300,
+        )
+
+    def installed_models(self) -> list[str]:
+        response = self.client.get(f"{self.base_url}/api/tags")
+        return [
+            str(item.get("name") or item.get("model"))
+            for item in response.get("models", [])
+            if item.get("name") or item.get("model")
+        ]
+
+    def validate_model(self) -> None:
+        installed = self.installed_models()
+        if self.model not in installed:
+            available = ", ".join(installed) or "none"
+            raise RuntimeError(
+                f"Ollama model {self.model!r} is not installed; available models: {available}"
+            )
+
+    def analyze(
+        self, paper: Paper, research_interest: str, source_text: str | None = None
+    ) -> PaperAnalysis:
+        material = source_text or paper.abstract
+        if not material:
+            return PendingAnalyzer().analyze(paper, research_interest, source_text)
+        basis = "full_text" if source_text else "abstract_only"
+        schema = {**ANALYSIS_SCHEMA}
+        payload = {
+            "model": self.model,
+            "stream": False,
+            "think": False,
+            "format": schema,
+            "options": {"temperature": 0},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Analyze research papers conservatively. Use only the supplied source "
+                        "text. Do not infer methods, findings, sample characteristics, or causal "
+                        "claims that are not explicit. Put missing or uncertain information in "
+                        "limitations. Return only JSON matching the supplied schema."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"{_analysis_prompt(paper, research_interest, material, basis)}\n\n"
+                        f"JSON schema:\n{json.dumps(schema, ensure_ascii=False)}"
+                    ),
+                },
+            ],
+        }
+        response = self.client.request_json("POST", f"{self.base_url}/api/chat", payload)
+        content = (response.get("message") or {}).get("content")
+        if not content:
+            raise RuntimeError("Ollama returned no structured analysis content")
+        parsed = json.loads(content)
+        parsed["basis"] = basis
+        return PaperAnalysis.from_dict(parsed)
+
+
 ANALYSIS_SCHEMA = {
     "type": "object",
     "properties": {
