@@ -6,7 +6,7 @@ import copy
 from collections.abc import Iterable
 from typing import Any
 
-from research_retriever.http import JsonHttpClient
+from research_retriever.http import HttpError, JsonHttpClient
 from research_retriever.models import (
     Author,
     Origin,
@@ -48,7 +48,12 @@ ZOTERO_TYPES = {
 class ZoteroClient:
     base_url = "https://api.zotero.org"
 
-    def __init__(self, settings: ZoteroSettings, client: JsonHttpClient | None = None) -> None:
+    def __init__(
+        self,
+        settings: ZoteroSettings,
+        client: JsonHttpClient | None = None,
+        local_client: JsonHttpClient | None = None,
+    ) -> None:
         if settings.library_type not in {"user", "group"}:
             raise ValueError("Zotero library_type must be 'user' or 'group'")
         if not settings.api_key:
@@ -61,6 +66,7 @@ class ZoteroClient:
                 "Zotero-API-Version": "3",
             },
         )
+        self.local_client = local_client or JsonHttpClient(user_agent="research-retriever/0.1")
         prefix = "users" if settings.library_type == "user" else "groups"
         self.library_path = f"/{prefix}/{settings.library_id}"
         self._templates: dict[str, dict[str, Any]] = {}
@@ -76,6 +82,37 @@ class ZoteroClient:
 
     def get_item(self, key: str) -> dict[str, Any]:
         return self.client.get(f"{self.base_url}{self.library_path}/items/{key}")
+
+    def pdf_full_text(self, parent_key: str) -> str:
+        """Return Zotero's indexed text for a child PDF, preferring the local API."""
+        attempts = (
+            (self.local_client, f"http://127.0.0.1:23119/api{self.library_path}"),
+            (self.client, f"{self.base_url}{self.library_path}"),
+        )
+        errors: list[str] = []
+        for client, base in attempts:
+            try:
+                children = client.get(f"{base}/items/{parent_key}/children")
+                pdfs = [
+                    item
+                    for item in children
+                    if (item.get("data") or item).get("itemType") == "attachment"
+                    and (item.get("data") or item).get("contentType") == "application/pdf"
+                ]
+                for attachment in pdfs:
+                    key = attachment.get("key") or attachment.get("data", {}).get("key")
+                    if not key:
+                        continue
+                    fulltext = client.get(f"{base}/items/{key}/fulltext")
+                    if content := fulltext.get("content"):
+                        return str(content)
+                errors.append(f"no indexed child PDF via {base}")
+            except (HttpError, OSError, TypeError, ValueError) as exc:
+                errors.append(str(exc))
+        raise RuntimeError(
+            "Zotero has no accessible indexed PDF text for this item. Open the PDF in Zotero "
+            "and let indexing/sync finish, then retry. " + "; ".join(errors)
+        )
 
     def create_papers(
         self, papers: Iterable[Paper], collection_key: str | None = None

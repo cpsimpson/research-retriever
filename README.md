@@ -173,6 +173,13 @@ Harvest the references of a cataloged paper:
 research-retriever harvest-references "doi:10.1234/example"
 ```
 
+For drafts and other papers without an OpenAlex or Crossref reference list, the same command falls
+back to the indexed text of a PDF attached in Zotero. With Ollama configured, bibliography entries
+are extracted locally and matched conservatively against the local catalog and OpenAlex. Confident
+matches are linked or added under `Research Retriever/References`; unmatched entries are listed in
+the paper's Obsidian note instead of being added as uncertain Zotero records. Open the PDF in Zotero
+and allow indexing to finish before running the command.
+
 Check for a preprint's published version:
 
 ```console

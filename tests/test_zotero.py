@@ -68,3 +68,30 @@ def test_zotero_payload_marks_tool_provenance(monkeypatch) -> None:
         "rr:type:journal_article",
     }
     assert payload["DOI"] == "10.1/result"
+
+
+class FullTextClient:
+    def get(self, url, *_args, **_kwargs):
+        if url.endswith("/children"):
+            return [
+                {
+                    "key": "PDF12345",
+                    "data": {
+                        "itemType": "attachment",
+                        "contentType": "application/pdf",
+                    },
+                }
+            ]
+        if url.endswith("/PDF12345/fulltext"):
+            return {"content": "Body\nReferences\nA citation"}
+        raise AssertionError(url)
+
+
+def test_zotero_reads_indexed_pdf_text_from_local_api(monkeypatch) -> None:
+    monkeypatch.setenv("ZOTERO_API_KEY", "secret")
+    client = ZoteroClient(
+        ZoteroSettings("user", "123"),
+        client=TemplateClient(),
+        local_client=FullTextClient(),
+    )
+    assert client.pdf_full_text("PARENT12").endswith("A citation")

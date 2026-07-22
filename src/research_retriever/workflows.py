@@ -6,6 +6,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from datetime import date
+from difflib import SequenceMatcher
 
 from research_retriever.analysis import Analyzer, PendingAnalyzer, analysis_for, attach_analysis
 from research_retriever.models import (
@@ -18,6 +19,11 @@ from research_retriever.models import (
 from research_retriever.obsidian import ObsidianWriter
 from research_retriever.providers.crossref import CrossrefProvider
 from research_retriever.providers.openalex import OpenAlexProvider
+from research_retriever.references import (
+    ExtractedReference,
+    HeuristicReferenceParser,
+    ReferenceParser,
+)
 from research_retriever.settings import TopicSettings
 from research_retriever.store import PaperStore
 from research_retriever.zotero import ZoteroClient, paper_from_zotero
@@ -39,6 +45,8 @@ class HarvestResult:
     created: int
     already_present: int
     papers: list[Paper]
+    unresolved: int = 0
+    source: str = "scholarly metadata"
 
 
 class ResearchWorkflow:
@@ -50,6 +58,7 @@ class ResearchWorkflow:
         crossref: CrossrefProvider | None = None,
         analyzer: Analyzer | None = None,
         obsidian: ObsidianWriter | None = None,
+        reference_parser: ReferenceParser | None = None,
     ) -> None:
         self.store = store
         self.zotero = zotero
@@ -57,6 +66,7 @@ class ResearchWorkflow:
         self.crossref = crossref
         self.analyzer = analyzer or PendingAnalyzer()
         self.obsidian = obsidian
+        self.reference_parser = reference_parser or HeuristicReferenceParser()
 
     def sync_zotero(self, incremental: bool = True) -> SyncResult:
         since = self.store.get_sync_state("zotero_library_version") if incremental else None
@@ -297,14 +307,28 @@ class ResearchWorkflow:
 
     def harvest_references(self, paper: Paper) -> HarvestResult:
         candidates: list[Paper] = []
+        source = "scholarly metadata"
+        unresolved = 0
         if self.openalex and paper.external_ids.get("openalex"):
             candidates.extend(self.openalex.references(paper))
         if self.crossref and paper.doi:
             candidates.extend(self.crossref.references(paper.doi))
         if not candidates:
-            raise RuntimeError(
-                "No reference list was available from OpenAlex or Crossref for this paper"
-            )
+            if not paper.zotero_key:
+                raise RuntimeError("The paper has no Zotero item key for locating an attached PDF")
+            source = "attached PDF"
+            extracted = self.reference_parser.parse(self.zotero.pdf_full_text(paper.zotero_key))
+            unresolved_items: list[ExtractedReference] = []
+            for item in extracted:
+                if candidate := self._resolve(item):
+                    candidates.append(candidate)
+                else:
+                    unresolved_items.append(item)
+            unresolved = len(unresolved_items)
+            paper.metadata["unresolved_references"] = [
+                item.raw or item.title for item in unresolved_items
+            ]
+            self.store.upsert(paper)
         unique: dict[str, Paper] = {}
         for reference in candidates:
             unique.setdefault(reference.canonical_key, reference)
@@ -361,7 +385,29 @@ class ResearchWorkflow:
             created=len(created),
             already_present=len(existing_by_key),
             papers=linked,
+            unresolved=unresolved,
+            source=source,
         )
+
+    def _resolve(self, citation: ExtractedReference) -> Paper | None:
+        local = _best_reference_match(citation, self.store.all_papers())
+        if local:
+            return local
+        candidates: list[Paper] = []
+        if self.openalex:
+            try:
+                candidates = (
+                    [self.openalex.get_work_by_doi(citation.doi)]
+                    if citation.doi
+                    else self.openalex.discover(citation.title, 5)
+                )
+            except Exception:
+                candidates = []
+        match = _best_reference_match(citation, candidates)
+        if match:
+            match.origin = Origin.CITED_REFERENCE
+            match.discovered_by = "Matched from attached PDF via OpenAlex"
+        return match
 
 
 def _matches_terms(paper: Paper, include: tuple[str, ...], exclude: tuple[str, ...]) -> bool:
@@ -369,6 +415,40 @@ def _matches_terms(paper: Paper, include: tuple[str, ...], exclude: tuple[str, .
     if include and not any(term.lower() in haystack for term in include):
         return False
     return not any(term.lower() in haystack for term in exclude)
+
+
+def _best_reference_match(citation: ExtractedReference, candidates: list[Paper]) -> Paper | None:
+    if citation.doi:
+        for candidate in candidates:
+            if candidate.doi == citation.doi:
+                return candidate
+    if not citation.title:
+        return None
+    title = _match_text(citation.title)
+    scored: list[tuple[float, Paper]] = []
+    for candidate in candidates:
+        similarity = SequenceMatcher(None, title, _match_text(candidate.title)).ratio()
+        if similarity < 0.88:
+            continue
+        if (
+            citation.year
+            and candidate.publication_year
+            and abs(citation.year - candidate.publication_year) > 1
+        ):
+            continue
+        if citation.authors and candidate.authors:
+            expected = {_author_surname(author) for author in citation.authors}
+            actual = {_author_surname(author.name) for author in candidate.authors}
+            if expected.isdisjoint(actual):
+                continue
+        scored.append((similarity, candidate))
+    return max(scored, default=(0.0, None), key=lambda item: item[0])[1]
+
+
+def _author_surname(name: str) -> str:
+    before_comma = name.split(",", 1)[0].strip()
+    surname = before_comma.split()[-1] if before_comma else ""
+    return re.sub(r"[^a-z0-9]", "", surname.lower())
 
 
 PUBLISHED_TYPES = frozenset(

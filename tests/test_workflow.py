@@ -3,6 +3,7 @@ from datetime import date
 from research_retriever.analysis import PaperAnalysis
 from research_retriever.models import Author, Origin, Paper, RelationshipType, WorkType
 from research_retriever.obsidian import ObsidianWriter
+from research_retriever.references import ExtractedReference
 from research_retriever.settings import ZoteroSettings
 from research_retriever.store import PaperStore
 from research_retriever.workflows import ResearchWorkflow
@@ -49,6 +50,31 @@ class CountingAnalyzer:
         return PaperAnalysis(summary="A daily summary.")
 
 
+class PDFZotero(VersionZotero):
+    def pdf_full_text(self, _key):
+        return "Body\nReferences\nExtracted bibliography"
+
+    def ensure_collection_path(self, _path):
+        return "REFERENCES"
+
+    def create_papers(self, papers, _collection):
+        assert list(papers) == []
+        return []
+
+
+class PDFReferenceParser:
+    def parse(self, _text):
+        return [
+            ExtractedReference(
+                raw="Lovelace, A. (1843). Notes.",
+                title="Notes",
+                authors=("Lovelace, A.",),
+                year=1843,
+            ),
+            ExtractedReference(raw="An unresolvable private manuscript"),
+        ]
+
+
 def test_initial_library_is_cataloged_then_processed_gradually(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("ZOTERO_API_KEY", "secret")
     store = PaperStore(tmp_path / "catalog.sqlite3")
@@ -67,6 +93,38 @@ def test_initial_library_is_cataloged_then_processed_gradually(tmp_path, monkeyp
     assert analyzer.calls == 1
     assert roundup_path.exists()
     assert (tmp_path / "vault" / papers[0].obsidian_path).exists()
+
+
+def test_reference_harvest_falls_back_to_attached_pdf_and_preserves_unresolved(tmp_path) -> None:
+    store = PaperStore(tmp_path / "catalog.sqlite3")
+    store.initialize()
+    manuscript = Paper(title="Draft", zotero_key="DRAFT123")
+    cited = Paper(
+        title="Notes",
+        authors=[Author("Ada Lovelace")],
+        publication_year=1843,
+        zotero_key="CITED123",
+    )
+    store.upsert(manuscript)
+    store.upsert(cited)
+    zotero = PDFZotero()
+    obsidian = ObsidianWriter(tmp_path / "vault", "Literature", "Roundups")
+    workflow = ResearchWorkflow(
+        store,
+        zotero,
+        obsidian=obsidian,
+        reference_parser=PDFReferenceParser(),
+    )
+
+    result = workflow.harvest_references(manuscript)
+
+    assert result.source == "attached PDF"
+    assert result.already_present == 1
+    assert result.unresolved == 1
+    assert zotero.links == [("DRAFT123", ["CITED123"])]
+    note = (tmp_path / "vault" / manuscript.obsidian_path).read_text()
+    assert "Unresolved references from the attached PDF" in note
+    assert "An unresolvable private manuscript" in note
 
 
 def test_same_title_author_preprint_is_linked_to_publication_and_skipped_in_roundup(

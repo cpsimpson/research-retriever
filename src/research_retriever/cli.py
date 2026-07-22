@@ -14,6 +14,7 @@ from research_retriever.analysis import Analyzer, OllamaAnalyzer, OpenAIAnalyzer
 from research_retriever.models import ReadingStatus
 from research_retriever.obsidian import ObsidianWriter
 from research_retriever.providers import CrossrefProvider, OpenAlexProvider
+from research_retriever.references import HeuristicReferenceParser, OllamaReferenceParser
 from research_retriever.settings import (
     Settings,
     default_config_path,
@@ -143,6 +144,10 @@ def _runtime(config_path: Path | None) -> Runtime:
             settings.providers.analysis_model,
             settings.providers.analysis_base_url,
         )
+        reference_parser = OllamaReferenceParser(
+            settings.providers.analysis_model,
+            settings.providers.analysis_base_url,
+        )
     elif provider == "openai" and settings.providers.analysis_api_key:
         analyzer = OpenAIAnalyzer(
             settings.providers.analysis_api_key,
@@ -152,6 +157,7 @@ def _runtime(config_path: Path | None) -> Runtime:
         provider == "openai" and not settings.providers.analysis_api_key
     ):
         analyzer = PendingAnalyzer()
+        reference_parser = HeuristicReferenceParser()
     else:
         raise ValueError(f"Unsupported analysis provider: {settings.providers.analysis_provider}")
     obsidian = ObsidianWriter(
@@ -159,7 +165,17 @@ def _runtime(config_path: Path | None) -> Runtime:
         settings.app.notes_folder,
         settings.app.roundup_folder,
     )
-    workflow = ResearchWorkflow(store, zotero, openalex, crossref, analyzer, obsidian)
+    if provider == "openai" and settings.providers.analysis_api_key:
+        reference_parser = HeuristicReferenceParser()
+    workflow = ResearchWorkflow(
+        store,
+        zotero,
+        openalex,
+        crossref,
+        analyzer,
+        obsidian,
+        reference_parser,
+    )
     return Runtime(settings, store, zotero, workflow, obsidian, analyzer)
 
 
@@ -269,8 +285,12 @@ def _harvest_references(runtime: Runtime, args: argparse.Namespace) -> int:
     result = runtime.workflow.harvest_references(paper)
     print(
         f"Retrieved {result.retrieved} unique reference(s); added {result.created} to Zotero "
-        f"and linked {result.already_present} existing item(s)."
+        f"and linked {result.already_present} existing item(s) from {result.source}."
     )
+    if result.unresolved:
+        print(
+            f"Skipped {result.unresolved} PDF reference(s) that could not be matched confidently."
+        )
     return 0
 
 

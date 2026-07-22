@@ -184,6 +184,15 @@ def _generated_section(
             confidence = "verified metadata" if relation.verified else "inferred match"
             version_lines.append(f"{line} — {label}; {confidence}: {relation.evidence_source}")
     references = "\n".join(reference_lines) or "- References have not been harvested."
+    unresolved = [
+        str(item).strip()
+        for item in paper.metadata.get("unresolved_references", [])
+        if str(item).strip()
+    ]
+    if unresolved:
+        references += "\n\n### Unresolved references from the attached PDF\n\n" + "\n".join(
+            f"- {item}" for item in unresolved
+        )
     versions = (
         "\n".join(version_lines) or "- No related publication versions are currently recorded."
     )
