@@ -15,6 +15,9 @@ class HttpError(RuntimeError):
     pass
 
 
+SENSITIVE_QUERY_PARAMETERS = frozenset({"access_token", "api_key", "apikey", "key", "token"})
+
+
 @dataclass(slots=True)
 class JsonHttpClient:
     user_agent: str
@@ -57,9 +60,11 @@ class JsonHttpClient:
             except urllib.error.HTTPError as exc:
                 retryable = exc.code in {429, 500, 502, 503, 504}
                 if not retryable or attempt == self.max_attempts - 1:
-                    detail = exc.read().decode(errors="replace")[:500]
+                    detail = _safe_detail(
+                        exc.read().decode(errors="replace")[:500], request.full_url
+                    )
                     raise HttpError(
-                        f"{request.get_method()} {request.full_url}: {exc.code} {detail}"
+                        f"{request.get_method()} {_safe_url(request.full_url)}: {exc.code} {detail}"
                     ) from exc
                 retry_after = exc.headers.get("Retry-After")
                 delay = float(retry_after) if retry_after and retry_after.isdigit() else 2**attempt
@@ -67,7 +72,29 @@ class JsonHttpClient:
             except urllib.error.URLError as exc:
                 if attempt == self.max_attempts - 1:
                     raise HttpError(
-                        f"{request.get_method()} {request.full_url}: {exc.reason}"
+                        f"{request.get_method()} {_safe_url(request.full_url)}: {exc.reason}"
                     ) from exc
                 time.sleep(2**attempt)
         raise AssertionError("unreachable")
+
+
+def _safe_url(url: str) -> str:
+    parts = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+    redacted = [
+        (name, "[REDACTED]" if name.lower() in SENSITIVE_QUERY_PARAMETERS else value)
+        for name, value in query
+    ]
+    return urllib.parse.urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(redacted), parts.fragment)
+    )
+
+
+def _safe_detail(detail: str, url: str) -> str:
+    for name, value in urllib.parse.parse_qsl(
+        urllib.parse.urlsplit(url).query, keep_blank_values=True
+    ):
+        if value and name.lower() in SENSITIVE_QUERY_PARAMETERS:
+            detail = detail.replace(value, "[REDACTED]")
+            detail = detail.replace(urllib.parse.quote_plus(value), "%5BREDACTED%5D")
+    return detail

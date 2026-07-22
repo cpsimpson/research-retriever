@@ -36,3 +36,27 @@ def test_network_error_reports_request_method(monkeypatch) -> None:
         JsonHttpClient("test", max_attempts=1).request_json(
             "POST", "https://example.test/resource", {"value": 1}
         )
+
+
+def test_http_errors_redact_api_keys_from_urls(monkeypatch) -> None:
+    error = urllib.error.HTTPError(
+        "https://example.test/resource",
+        400,
+        "Bad Request",
+        {},
+        io.BytesIO(b"invalid API key super-secret"),
+    )
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr("urllib.request.urlopen", fail)
+
+    with pytest.raises(HttpError) as captured:
+        JsonHttpClient("test", max_attempts=1).get(
+            "https://example.test/resource", {"api_key": "super-secret", "search": "topic"}
+        )
+
+    assert "super-secret" not in str(captured.value)
+    assert "api_key=%5BREDACTED%5D" in str(captured.value)
+    assert "invalid API key [REDACTED]" in str(captured.value)

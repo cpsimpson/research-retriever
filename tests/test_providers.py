@@ -6,8 +6,10 @@ from research_retriever.providers.openalex import OpenAlexProvider
 class FakeClient:
     def __init__(self, response):
         self.response = response
+        self.calls = []
 
-    def get(self, *_args, **_kwargs):
+    def get(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
         return self.response
 
 
@@ -45,6 +47,16 @@ def test_openalex_parser_exposes_venue_signals() -> None:
     assert paper.review_status == ReviewStatus.LIKELY_PEER_REVIEWED
     assert paper.venue.h_index == 42
     assert paper.venue.is_in_doaj is True
+
+
+def test_openalex_discovery_treats_question_punctuation_as_prose() -> None:
+    client = FakeClient({"results": []})
+    provider = OpenAlexProvider("secret", "researcher@example.test", client=client)
+
+    provider.discover("How do people perceive AI? What explains it?", limit=10)
+
+    params = client.calls[0][0][1]
+    assert params["search"] == "How do people perceive AI What explains it"
 
 
 def test_crossref_version_relationships_support_preprint_links() -> None:

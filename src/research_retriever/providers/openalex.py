@@ -36,7 +36,7 @@ class OpenAlexProvider:
         response = self.client.get(
             f"{self.base_url}/works",
             {
-                "search": query,
+                "search": _natural_language_search(query),
                 "per_page": min(limit, 100),
                 "sort": "relevance_score:desc",
                 "api_key": self.api_key,
@@ -176,6 +176,11 @@ def _rebuild_abstract(index: dict[str, list[int]] | None) -> str | None:
         return None
     positioned = ((position, word) for word, positions in index.items() for position in positions)
     return " ".join(word for _, word in sorted(positioned))
+
+
+def _natural_language_search(query: str) -> str:
+    """Remove wildcard syntax when a topic is expressed as ordinary prose."""
+    return " ".join(query.translate(str.maketrans({"?": " ", "*": " "})).split())
 
 
 def _work_type(raw_type: str | None, source_type: str | None) -> WorkType:
