@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
@@ -11,6 +13,7 @@ from research_retriever.models import (
     Paper,
     PaperRelationship,
     RelationshipType,
+    WorkType,
 )
 from research_retriever.obsidian import ObsidianWriter
 from research_retriever.providers.crossref import CrossrefProvider
@@ -90,11 +93,13 @@ class ResearchWorkflow:
         for paper in candidates:
             existing = self.store.get(paper.canonical_key)
             if existing:
+                self.check_updated_versions(existing, inbox)
                 output.append(existing)
                 continue
             paper.metadata["matched_topic_id"] = topic.id
             paper.metadata["matched_interest"] = topic.interest
             paper = self.zotero.create_papers([paper], inbox)[0]
+            self.store.upsert(paper)
             self.check_updated_versions(paper, inbox)
             self.analyze_and_write(paper, topic.interest)
             self.store.record_topic_match(
@@ -141,10 +146,11 @@ class ResearchWorkflow:
     ) -> list[Paper]:
         if result.initial_import:
             return []
-        return [
-            self.analyze_and_write(paper, research_interest, force=True)
-            for paper in result.papers or []
-        ]
+        processed: list[Paper] = []
+        for paper in result.papers or []:
+            self.check_updated_versions(paper)
+            processed.append(self.analyze_and_write(paper, research_interest, force=True))
+        return processed
 
     def create_daily_roundup(
         self,
@@ -162,15 +168,14 @@ class ResearchWorkflow:
     def check_updated_versions(
         self, paper: Paper, collection_key: str | None = None
     ) -> list[Paper]:
-        if self.crossref is None or self.openalex is None or not paper.doi:
-            return []
         versions: list[Paper] = []
-        try:
-            relationships = self.crossref.version_relationships(paper.doi)
-        except Exception as exc:
-            paper.metadata["version_check_error"] = str(exc)
-            self.store.upsert(paper)
-            return []
+        relationships: list[PaperRelationship] = []
+        if self.crossref is not None and self.openalex is not None and paper.doi:
+            try:
+                relationships = self.crossref.version_relationships(paper.doi)
+            except Exception as exc:
+                paper.metadata["version_check_error"] = str(exc)
+                self.store.upsert(paper)
         for relationship in relationships:
             related_key = (
                 relationship.target_key
@@ -188,12 +193,85 @@ class ResearchWorkflow:
                 if not related.zotero_key:
                     related = self.zotero.create_papers([related], collection_key)[0]
                 self.store.upsert(related)
-            self.store.add_relationship(relationship)
+            self._record_version_relationship(relationship, paper, related)
             versions.append(related)
+        versions.extend(self._infer_local_versions(paper))
+        versions = list({version.canonical_key: version for version in versions}.values())
         if versions:
             paper.metadata["updated_versions"] = [version.canonical_key for version in versions]
             self.store.upsert(paper)
+            self._link_version_items(paper, versions)
+            if self.obsidian:
+                for version in versions:
+                    if version.obsidian_path:
+                        self.write_note(version, reconcile_status=False)
         return versions
+
+    def _infer_local_versions(self, paper: Paper) -> list[Paper]:
+        versions: list[Paper] = []
+        for candidate in self.store.all_papers():
+            pair = _preprint_publication_pair(paper, candidate)
+            if pair is None:
+                continue
+            preprint, publication = pair
+            self._record_version_pair(
+                preprint,
+                publication,
+                "Inferred from identical normalized title and overlapping authors",
+                verified=False,
+            )
+            versions.append(candidate)
+        return versions
+
+    def _record_version_relationship(
+        self, relationship: PaperRelationship, paper: Paper, related: Paper
+    ) -> None:
+        pair = _preprint_publication_pair(paper, related)
+        if pair is None:
+            self.store.add_relationship(relationship)
+            return
+        self._record_version_pair(
+            *pair,
+            evidence=relationship.evidence_source,
+            verified=relationship.verified,
+        )
+
+    def _record_version_pair(
+        self, preprint: Paper, publication: Paper, evidence: str, verified: bool
+    ) -> None:
+        self.store.add_relationship(
+            PaperRelationship(
+                source_key=preprint.canonical_key,
+                target_key=publication.canonical_key,
+                relationship=RelationshipType.PREPRINT_OF,
+                evidence_source=evidence,
+                verified=verified,
+            )
+        )
+        self.store.add_relationship(
+            PaperRelationship(
+                source_key=publication.canonical_key,
+                target_key=preprint.canonical_key,
+                relationship=RelationshipType.VERSION_OF,
+                evidence_source=evidence,
+                verified=verified,
+            )
+        )
+        preprint.best_available_version = publication.doi or publication.url
+        preprint.metadata["published_version"] = publication.canonical_key
+        publication.metadata["preprint_version"] = preprint.canonical_key
+        self.store.upsert(preprint)
+        self.store.upsert(publication)
+
+    def _link_version_items(self, paper: Paper, versions: list[Paper]) -> None:
+        if not paper.zotero_key:
+            return
+        related_keys = [version.zotero_key for version in versions if version.zotero_key]
+        if related_keys:
+            self.zotero.link_references(paper.zotero_key, related_keys)
+        for version in versions:
+            if version.zotero_key:
+                self.zotero.link_references(version.zotero_key, [paper.zotero_key])
 
     def harvest_references(self, paper: Paper) -> HarvestResult:
         candidates: list[Paper] = []
@@ -269,6 +347,34 @@ def _matches_terms(paper: Paper, include: tuple[str, ...], exclude: tuple[str, .
     if include and not any(term.lower() in haystack for term in include):
         return False
     return not any(term.lower() in haystack for term in exclude)
+
+
+PUBLISHED_TYPES = frozenset(
+    {WorkType.JOURNAL_ARTICLE, WorkType.CONFERENCE_PAPER, WorkType.BOOK_CHAPTER}
+)
+
+
+def _preprint_publication_pair(first: Paper, second: Paper) -> tuple[Paper, Paper] | None:
+    if first.canonical_key == second.canonical_key:
+        return None
+    if first.work_type == WorkType.PREPRINT and second.work_type in PUBLISHED_TYPES:
+        preprint, publication = first, second
+    elif second.work_type == WorkType.PREPRINT and first.work_type in PUBLISHED_TYPES:
+        preprint, publication = second, first
+    else:
+        return None
+    if _match_text(preprint.title) != _match_text(publication.title):
+        return None
+    preprint_authors = {_match_text(author.name) for author in preprint.authors}
+    publication_authors = {_match_text(author.name) for author in publication.authors}
+    if not preprint_authors or not publication_authors:
+        return None
+    return (preprint, publication) if preprint_authors & publication_authors else None
+
+
+def _match_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return " ".join(re.sub(r"[^\w]+", " ", normalized).split())
 
 
 def _merge_papers(local: Paper, enriched: Paper) -> Paper:

@@ -250,6 +250,11 @@ class PaperStore:
                   SELECT paper_key FROM roundup_appearances
               )
               AND p.origin != 'cited_reference'
+              AND NOT EXISTS (
+                  SELECT 1 FROM relationships version_link
+                  WHERE version_link.source_key = p.canonical_key
+                    AND version_link.relationship = 'preprint_of'
+              )
         """
         order = """
             ORDER BY CASE p.reading_status WHEN 'queued' THEN 0 ELSE 1 END,

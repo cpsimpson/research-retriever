@@ -179,7 +179,8 @@ def _generated_section(
             reference_lines.append(line)
         else:
             label = relation.relationship.value.replace("_", " ")
-            version_lines.append(f"{line} — {label}")
+            confidence = "verified metadata" if relation.verified else "inferred match"
+            version_lines.append(f"{line} — {label}; {confidence}: {relation.evidence_source}")
     references = "\n".join(reference_lines) or "- References have not been harvested."
     versions = (
         "\n".join(version_lines) or "- No related publication versions are currently recorded."

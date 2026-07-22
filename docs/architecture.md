@@ -57,6 +57,11 @@ The tool keeps separate fields for:
 These dimensions must not be collapsed into a single citation-suitability score. Suitability depends on
 the claim, field, venue norms, study design, and the researcher's purpose.
 
+Crossref-deposited version links are recorded as verified metadata. When that metadata is absent, the
+tool may infer a preprint/publication relationship only when the normalized titles are identical,
+author lists overlap, and the publication types are compatible. Both bibliographic records remain in
+Zotero and are linked bidirectionally; the weaker preprint is omitted from automatic daily selection.
+
 ## Synchronization rules
 
 - Zotero bibliographic metadata wins over previously cached bibliographic metadata.
@@ -94,4 +99,3 @@ basis, and confidence. API-side response storage is disabled for the provided Op
 
 When only an abstract is available, the generated note states `abstract_only`. Missing methods or
 findings remain empty rather than being guessed.
-

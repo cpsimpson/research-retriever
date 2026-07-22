@@ -16,7 +16,8 @@ and exposes venue indicators instead of pretending that one universal journal-qu
 - Add discoveries to a managed Zotero inbox without duplicating known DOIs.
 - Label journal articles, conference papers, preprints, working papers, reports, theses, datasets,
   books, chapters, editorials, corrections, retractions, and unknown records.
-- Record explicit Crossref preprint, version, and replacement relationships.
+- Record explicit Crossref version relationships and conservatively infer preprint/publication pairs
+  when normalized titles are identical and author lists overlap.
 - Display transparent venue signals from OpenAlex, including venue type, DOAJ status, open-access
   status, h-index, i10-index, and two-year mean citedness when available.
 - Harvest cited references from OpenAlex and Crossref, create missing Zotero records in batches, and
@@ -199,8 +200,10 @@ back to the corresponding Zotero status tag.
   citations instead of silently claiming the harvested list is exhaustive.
 - A journal venue does not prove that a particular item was peer reviewed. Journal articles are
   labeled `likely_peer_reviewed`; preprints are `not_peer_reviewed`; conference review is `varies`.
-- Explicit version relationships depend on deposited Crossref metadata. Title-based fuzzy matching is
-  not yet used because false preprint/publication matches are worse than a missed suggestion.
+- Inferred version relationships require an identical normalized title, overlapping authors, and a
+  preprint-versus-published type pairing. Near-title fuzzy matching is not used because false
+  preprint/publication matches are worse than a missed suggestion. Notes distinguish verified
+  metadata from inferred matches.
 - Phase one analyzes abstracts unless a full-text source is explicitly supplied by a future retrieval
   adapter. Every note records its analysis basis.
 - Institutional SSO, licensed PDF retrieval, Consensus/SciSpace enrichment, audio, podcasts, and a
