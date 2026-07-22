@@ -207,6 +207,28 @@ class ResearchWorkflow:
                         self.write_note(version, reconcile_status=False)
         return versions
 
+    def reconcile_local_versions(self) -> list[tuple[Paper, Paper]]:
+        papers = self.store.all_papers()
+        pairs: dict[tuple[str, str], tuple[Paper, Paper]] = {}
+        for index, first in enumerate(papers):
+            for second in papers[index + 1 :]:
+                pair = _preprint_publication_pair(first, second)
+                if pair is not None:
+                    pairs[(pair[0].canonical_key, pair[1].canonical_key)] = pair
+        for preprint, publication in pairs.values():
+            self._record_version_pair(
+                preprint,
+                publication,
+                "Inferred from identical normalized title and overlapping authors",
+                verified=False,
+            )
+            self._link_version_items(preprint, [publication])
+            if self.obsidian:
+                for paper in (preprint, publication):
+                    if paper.obsidian_path:
+                        self.write_note(paper, reconcile_status=False)
+        return list(pairs.values())
+
     def _infer_local_versions(self, paper: Paper) -> list[Paper]:
         versions: list[Paper] = []
         for candidate in self.store.all_papers():

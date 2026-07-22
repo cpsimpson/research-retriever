@@ -156,6 +156,12 @@ Check for a preprint's published version:
 research-retriever check-versions "doi:10.1234/example"
 ```
 
+Reconcile conservative preprint/publication matches already present in the catalog:
+
+```console
+research-retriever reconcile-versions
+```
+
 Set read state using a DOI, Zotero item key, or catalog key:
 
 ```console

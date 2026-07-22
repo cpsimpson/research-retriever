@@ -83,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     versions.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
 
+    subparsers.add_parser(
+        "reconcile-versions",
+        help="Link strong preprint/publication matches already in the local catalog.",
+    )
+
     status = subparsers.add_parser("status", help="Set the reading status of a paper.")
     status.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
     status.add_argument("value", choices=tuple(status.value for status in ReadingStatus))
@@ -107,6 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "harvest-references": _harvest_references,
             "analyze": _analyze,
             "check-versions": _check_versions,
+            "reconcile-versions": _reconcile_versions,
             "status": _status,
         }
         return handlers[args.command](runtime, args)
@@ -258,6 +264,12 @@ def _check_versions(runtime: Runtime, args: argparse.Namespace) -> int:
     versions = runtime.workflow.check_updated_versions(paper)
     runtime.workflow.write_note(paper)
     print(f"Found {len(versions)} related publication version(s).")
+    return 0
+
+
+def _reconcile_versions(runtime: Runtime, _args: argparse.Namespace) -> int:
+    pairs = runtime.workflow.reconcile_local_versions()
+    print(f"Linked {len(pairs)} strong preprint/publication pair(s).")
     return 0
 
 

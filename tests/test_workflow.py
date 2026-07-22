@@ -134,3 +134,39 @@ def test_same_title_without_author_overlap_is_not_inferred_as_a_version(tmp_path
 
     assert versions == []
     assert store.relationships_from(preprint.canonical_key) == []
+
+
+def test_local_reconciliation_links_existing_strong_pairs(tmp_path) -> None:
+    store = PaperStore(tmp_path / "catalog.sqlite3")
+    store.initialize()
+    preprint = Paper(
+        title="A versioned study",
+        authors=[Author("Same Author")],
+        doi="10.1/preprint",
+        work_type=WorkType.PREPRINT,
+        zotero_key="PREPRINT",
+    )
+    publication = Paper(
+        title="A versioned study",
+        authors=[Author("Same Author")],
+        doi="10.1/published",
+        work_type=WorkType.JOURNAL_ARTICLE,
+        zotero_key="PUBLISHED",
+    )
+    unrelated = Paper(
+        title="A versioned study",
+        authors=[Author("Other Author")],
+        doi="10.1/unrelated",
+        work_type=WorkType.JOURNAL_ARTICLE,
+        zotero_key="UNRELATED",
+    )
+    for paper in (preprint, publication, unrelated):
+        store.upsert(paper)
+    zotero = VersionZotero()
+
+    pairs = ResearchWorkflow(store, zotero).reconcile_local_versions()
+
+    assert [(first.canonical_key, second.canonical_key) for first, second in pairs] == [
+        (preprint.canonical_key, publication.canonical_key)
+    ]
+    assert ("PREPRINT", ["PUBLISHED"]) in zotero.links
