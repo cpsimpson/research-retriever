@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     init = subparsers.add_parser("init", help="Create a starter configuration file.")
     init.add_argument("--vault", type=Path, help="Path to the Obsidian vault.")
     init.add_argument("--zotero-library-id", help="Numeric Zotero user or group library ID.")
-    init.add_argument("--email", help="Contact email used for polite scholarly API access.")
+    init.add_argument("--email", help="Contact email used for responsible Crossref API access.")
     init.add_argument("--force", action="store_true", help="Replace an existing configuration.")
 
     subparsers.add_parser("doctor", help="Check configuration and service connectivity.")
@@ -123,7 +123,6 @@ def _runtime(config_path: Path | None) -> Runtime:
     openalex = (
         OpenAlexProvider(
             settings.providers.openalex_api_key,
-            settings.providers.email,
         )
         if settings.providers.openalex_api_key
         else None
@@ -151,7 +150,7 @@ def _init(args: argparse.Namespace) -> int:
         raise ValueError(f"Configuration already exists at {path}; use --force to replace it")
     vault = args.vault or Path(input("Obsidian vault path: ").strip())
     library_id = args.zotero_library_id or input("Zotero library ID: ").strip()
-    email = args.email or input("Email for scholarly API requests: ").strip()
+    email = args.email or input("Contact email for Crossref API requests: ").strip()
     if not vault or not library_id or not email:
         raise ValueError("Vault path, Zotero library ID, and email are required")
     path.parent.mkdir(parents=True, exist_ok=True)

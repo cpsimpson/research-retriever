@@ -51,12 +51,13 @@ def test_openalex_parser_exposes_venue_signals() -> None:
 
 def test_openalex_discovery_treats_question_punctuation_as_prose() -> None:
     client = FakeClient({"results": []})
-    provider = OpenAlexProvider("secret", "researcher@example.test", client=client)
+    provider = OpenAlexProvider("secret", client=client)
 
     provider.discover("How do people perceive AI? What explains it?", limit=10)
 
     params = client.calls[0][0][1]
     assert params["search"] == "How do people perceive AI What explains it"
+    assert "mailto" not in params
 
 
 def test_crossref_version_relationships_support_preprint_links() -> None:

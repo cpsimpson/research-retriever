@@ -22,14 +22,11 @@ from research_retriever.models import (
 class OpenAlexProvider:
     base_url = "https://api.openalex.org"
 
-    def __init__(self, api_key: str, mailto: str, client: JsonHttpClient | None = None) -> None:
+    def __init__(self, api_key: str, client: JsonHttpClient | None = None) -> None:
         if not api_key:
             raise ValueError("OpenAlex requires an API key")
         self.api_key = api_key
-        self.mailto = mailto
-        self.client = client or JsonHttpClient(
-            user_agent=f"research-retriever/0.1 (mailto:{mailto})"
-        )
+        self.client = client or JsonHttpClient(user_agent="research-retriever/0.1")
         self._source_cache: dict[str, dict[str, Any]] = {}
 
     def discover(self, query: str, limit: int = 25) -> list[Paper]:
@@ -40,7 +37,6 @@ class OpenAlexProvider:
                 "per_page": min(limit, 100),
                 "sort": "relevance_score:desc",
                 "api_key": self.api_key,
-                "mailto": self.mailto,
             },
         )
         return [
@@ -51,7 +47,7 @@ class OpenAlexProvider:
         encoded = urllib.parse.quote(identifier, safe="")
         response = self.client.get(
             f"{self.base_url}/works/{encoded}",
-            {"api_key": self.api_key, "mailto": self.mailto},
+            {"api_key": self.api_key},
         )
         return self.parse_work(response, self._source_for(response))
 
@@ -67,7 +63,6 @@ class OpenAlexProvider:
             {
                 "select": "referenced_works",
                 "api_key": self.api_key,
-                "mailto": self.mailto,
             },
         )
         identifiers = [value.rsplit("/", 1)[-1] for value in raw.get("referenced_works", [])]
@@ -79,7 +74,6 @@ class OpenAlexProvider:
                     "filter": f"openalex:{'|'.join(batch)}",
                     "per_page": len(batch),
                     "api_key": self.api_key,
-                    "mailto": self.mailto,
                 },
             )
             for item in response.get("results", []):
@@ -97,7 +91,7 @@ class OpenAlexProvider:
         if short_id not in self._source_cache:
             self._source_cache[short_id] = self.client.get(
                 f"{self.base_url}/sources/{short_id}",
-                {"api_key": self.api_key, "mailto": self.mailto},
+                {"api_key": self.api_key},
             )
         return self._source_cache[short_id]
 

@@ -98,7 +98,9 @@ On macOS the default configuration is:
 ~/Library/Application Support/research-retriever/config.toml
 ```
 
-The numeric Zotero user ID is shown on Zotero's API-key page. For a group library, change
+The contact email identifies this client to Crossref; it is not used to sign in or send email.
+OpenAlex now relies on its API key instead. The numeric Zotero user ID is shown on Zotero's API-key
+page. For a group library, change
 `library_type` to `group` and use the numeric group ID. Edit the generated `[[topics]]` entries to
 describe real research interests. Multiple topic blocks are supported.
 

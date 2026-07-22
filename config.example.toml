@@ -17,7 +17,7 @@ inbox_collection = "Research Retriever/Inbox"
 references_collection = "Research Retriever/References"
 
 [providers]
-# Used to identify polite Crossref and OpenAlex API traffic.
+# Used to identify responsible Crossref API traffic. OpenAlex uses its API key.
 email = "researcher@example.edu"
 openalex_api_key_env = "OPENALEX_API_KEY"
 analysis_provider = "openai"
@@ -31,4 +31,3 @@ query = "How does the phenomenon affect the population under the specified condi
 interest = "I study this phenomenon and want empirical work using rigorous longitudinal methods."
 include_terms = ["longitudinal"]
 exclude_terms = ["editorial"]
-
