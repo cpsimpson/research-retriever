@@ -185,11 +185,16 @@ Reconcile conservative preprint/publication matches already present in the catal
 research-retriever reconcile-versions
 ```
 
-Set read state using a DOI, Zotero item key, or catalog key:
+Set read state using a DOI, citation key, Zotero item key, or catalog key:
 
 ```console
 research-retriever status "ABCD1234" read
 ```
+
+Citation keys are imported as convenient, case-insensitive lookup aliases and written to Obsidian
+frontmatter. They are not used as canonical paper identities because Zotero or Better BibTeX may
+regenerate them when metadata changes. Run `research-retriever sync --full` once after enabling this
+feature to populate keys for papers already in the local catalog.
 
 Force a refreshed analysis and note:
 

@@ -20,6 +20,7 @@ GENERATED_END = "<!-- research-retriever:generated:end -->"
 MANAGED_PROPERTIES = {
     "research_retriever",
     "doi",
+    "citation_key",
     "zotero_key",
     "reading_status",
     "publication_type",
@@ -126,6 +127,7 @@ def _properties(paper: Paper, analysis: PaperAnalysis) -> dict[str, str]:
     return {
         "research_retriever": "true",
         "doi": paper.doi or "",
+        "citation_key": paper.citation_key or "",
         "zotero_key": paper.zotero_key or "",
         "reading_status": paper.reading_status.value,
         "publication_type": paper.work_type.value,

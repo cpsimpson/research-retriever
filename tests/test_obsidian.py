@@ -32,7 +32,7 @@ def test_note_updates_generated_content_and_preserves_manual_notes(tmp_path) -> 
 
 def test_note_preserves_unknown_frontmatter_and_reads_manual_status(tmp_path) -> None:
     writer = ObsidianWriter(tmp_path, "Literature", "Roundups")
-    paper = Paper(title="Paper")
+    paper = Paper(title="Paper", citation_key="authorPaper2026")
     path = writer.write_paper_note(paper)
     content = path.read_text().replace(
         'reading_status: "unread"', 'reading_status: "read"\nmy_property: "keep me"'
@@ -41,6 +41,7 @@ def test_note_preserves_unknown_frontmatter_and_reads_manual_status(tmp_path) ->
     assert writer.read_status(paper) == ReadingStatus.READ
     writer.write_paper_note(paper)
     assert 'my_property: "keep me"' in path.read_text()
+    assert 'citation_key: "authorPaper2026"' in path.read_text()
 
 
 def test_roundup_labels_manual_zotero_items(tmp_path) -> None:

@@ -111,6 +111,7 @@ class Paper:
     cited_by_count: int | None = None
     open_access_status: str | None = None
     best_available_version: str | None = None
+    citation_key: str | None = None
     zotero_key: str | None = None
     zotero_version: int | None = None
     obsidian_path: str | None = None

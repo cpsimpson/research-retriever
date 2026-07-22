@@ -402,6 +402,7 @@ def _match_text(value: str) -> str:
 def _merge_papers(local: Paper, enriched: Paper) -> Paper:
     enriched.reading_status = local.reading_status
     enriched.origin = local.origin
+    enriched.citation_key = local.citation_key
     enriched.zotero_key = local.zotero_key
     enriched.zotero_version = local.zotero_version
     enriched.obsidian_path = local.obsidian_path

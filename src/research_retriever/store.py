@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS papers (
     record_status TEXT NOT NULL,
     reading_status TEXT NOT NULL,
     origin TEXT NOT NULL,
+    citation_key TEXT,
     zotero_key TEXT UNIQUE,
     obsidian_path TEXT,
     record_json TEXT NOT NULL,
@@ -87,6 +88,14 @@ class PaperStore:
     def initialize(self) -> None:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(papers)").fetchall()
+            }
+            if "citation_key" not in columns:
+                connection.execute("ALTER TABLE papers ADD COLUMN citation_key TEXT")
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS papers_citation_key ON papers(citation_key)"
+            )
 
     def upsert(self, paper: Paper) -> str:
         now = datetime.now(UTC).isoformat()
@@ -96,9 +105,9 @@ class PaperStore:
                 """
                 INSERT INTO papers (
                     canonical_key, doi, title, publication_year, work_type, review_status,
-                    record_status, reading_status, origin, zotero_key, obsidian_path,
+                    record_status, reading_status, origin, citation_key, zotero_key, obsidian_path,
                     record_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(canonical_key) DO UPDATE SET
                     doi = excluded.doi,
                     title = excluded.title,
@@ -108,6 +117,7 @@ class PaperStore:
                     record_status = excluded.record_status,
                     reading_status = excluded.reading_status,
                     origin = excluded.origin,
+                    citation_key = excluded.citation_key,
                     zotero_key = excluded.zotero_key,
                     obsidian_path = excluded.obsidian_path,
                     record_json = excluded.record_json,
@@ -123,6 +133,7 @@ class PaperStore:
                     paper.record_status,
                     paper.reading_status,
                     paper.origin,
+                    paper.citation_key,
                     paper.zotero_key,
                     paper.obsidian_path,
                     paper.to_json(),
@@ -139,7 +150,16 @@ class PaperStore:
                    WHERE canonical_key = ? OR doi = ? OR zotero_key = ?""",
                 (key, key.removeprefix("doi:"), key),
             ).fetchone()
-        return Paper.from_json(row["record_json"]) if row else None
+            if row:
+                return Paper.from_json(row["record_json"])
+            rows = connection.execute(
+                """SELECT record_json FROM papers
+                   WHERE citation_key = ? COLLATE NOCASE""",
+                (key,),
+            ).fetchall()
+        if len(rows) > 1:
+            raise ValueError(f"Citation key is ambiguous: {key}")
+        return Paper.from_json(rows[0]["record_json"]) if rows else None
 
     def add_relationship(self, relationship: PaperRelationship) -> None:
         with self.connect() as connection:

@@ -72,17 +72,19 @@ def build_parser() -> argparse.ArgumentParser:
     harvest = subparsers.add_parser(
         "harvest-references", help="Import references cited by a paper."
     )
-    harvest.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
+    harvest.add_argument("paper", help="DOI, citation key, Zotero item key, or catalog identifier.")
 
     analyze = subparsers.add_parser(
         "analyze", help="Analyze one cataloged paper and write its note."
     )
-    analyze.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
+    analyze.add_argument("paper", help="DOI, citation key, Zotero item key, or catalog identifier.")
 
     versions = subparsers.add_parser(
         "check-versions", help="Check whether another publication version exists."
     )
-    versions.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
+    versions.add_argument(
+        "paper", help="DOI, citation key, Zotero item key, or catalog identifier."
+    )
 
     subparsers.add_parser(
         "reconcile-versions",
@@ -90,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     status = subparsers.add_parser("status", help="Set the reading status of a paper.")
-    status.add_argument("paper", help="DOI, Zotero item key, or catalog identifier.")
+    status.add_argument("paper", help="DOI, citation key, Zotero item key, or catalog identifier.")
     status.add_argument("value", choices=tuple(status.value for status in ReadingStatus))
     return parser
 

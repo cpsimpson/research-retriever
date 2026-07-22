@@ -12,6 +12,7 @@ def test_manual_zotero_item_is_classified_and_read_status_is_imported() -> None:
                 "itemType": "preprint",
                 "title": "An early paper",
                 "DOI": "10.1/EARLY",
+                "citationKey": "lovelaceEarlyPaper",
                 "date": "2025-01-01",
                 "tags": [{"tag": "rr:reading"}],
                 "creators": [{"firstName": "Ada", "lastName": "Lovelace"}],
@@ -23,6 +24,20 @@ def test_manual_zotero_item_is_classified_and_read_status_is_imported() -> None:
     assert paper.work_type == WorkType.PREPRINT
     assert paper.reading_status == ReadingStatus.READING
     assert paper.zotero_key == "ABCD1234"
+    assert paper.citation_key == "lovelaceEarlyPaper"
+
+
+def test_legacy_citation_key_is_read_from_extra() -> None:
+    paper = paper_from_zotero(
+        {
+            "data": {
+                "itemType": "journalArticle",
+                "title": "A paper",
+                "extra": "Citation Key: authorLegacyKey",
+            }
+        }
+    )
+    assert paper.citation_key == "authorLegacyKey"
 
 
 class TemplateClient:

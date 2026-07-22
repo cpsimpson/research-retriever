@@ -232,6 +232,7 @@ def paper_from_zotero(item: dict[str, Any]) -> Paper:
     )
     work_type = _from_zotero_type(data.get("itemType"), tags)
     doi = data.get("DOI") or _doi_from_extra(data.get("extra", ""))
+    citation_key = data.get("citationKey") or _citation_key_from_extra(data.get("extra", ""))
     return Paper(
         title=data.get("title") or "Untitled",
         authors=[
@@ -267,6 +268,7 @@ def paper_from_zotero(item: dict[str, Any]) -> Paper:
             publisher=data.get("publisher") or data.get("institution") or None,
             source="Zotero",
         ),
+        citation_key=citation_key or None,
         zotero_key=data.get("key") or item.get("key"),
         zotero_version=data.get("version") or item.get("version"),
         added_by_tool=managed,
@@ -317,6 +319,14 @@ def _doi_from_extra(extra: str) -> str | None:
     for line in extra.splitlines():
         key, separator, value = line.partition(":")
         if separator and key.strip().lower() == "doi":
+            return value.strip()
+    return None
+
+
+def _citation_key_from_extra(extra: str) -> str | None:
+    for line in extra.splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip().lower().replace(" ", "") == "citationkey":
             return value.strip()
     return None
 
