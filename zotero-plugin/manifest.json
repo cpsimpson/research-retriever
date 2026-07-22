@@ -6,9 +6,10 @@
   "homepage_url": "https://github.com/cpsimpson/research-retriever",
   "applications": {
     "zotero": {
-      "id": "research-retriever-full-text@cpsimpson",
-      "strict_min_version": "7.0",
-      "strict_max_version": "10.0.*"
+      "id": "research-retriever-full-text@cpsimpson.dev",
+      "update_url": "https://github.com/cpsimpson/research-retriever/releases/latest/download/updates.json",
+      "strict_min_version": "9.0",
+      "strict_max_version": "10.*"
     }
   }
 }

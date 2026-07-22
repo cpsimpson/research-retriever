@@ -10,8 +10,10 @@ def test_plugin_is_scoped_to_managed_items_and_current_zotero_versions() -> None
     zotero = manifest["applications"]["zotero"]
     bootstrap = (ROOT / "zotero-plugin" / "bootstrap.js").read_text()
 
-    assert zotero["strict_min_version"] == "7.0"
-    assert zotero["strict_max_version"] == "10.0.*"
+    assert zotero["id"] == "research-retriever-full-text@cpsimpson.dev"
+    assert zotero["update_url"].endswith("/releases/latest/download/updates.json")
+    assert zotero["strict_min_version"] == "9.0"
+    assert zotero["strict_max_version"] == "10.*"
     assert 'tag === "rr:managed"' in bootstrap
     assert "addAvailableFiles(eligible)" in bootstrap
     assert 'event !== "add"' in bootstrap
