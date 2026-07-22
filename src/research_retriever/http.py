@@ -22,7 +22,7 @@ class JsonHttpClient:
     max_attempts: int = 3
     default_headers: dict[str, str] = field(default_factory=dict)
 
-    def get(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    def get(self, url: str, params: dict[str, Any] | None = None) -> Any:
         if params:
             query = urllib.parse.urlencode(
                 {key: value for key, value in params.items() if value is not None}, doseq=True
@@ -67,4 +67,3 @@ class JsonHttpClient:
                     raise HttpError(f"{request.method} {request.full_url}: {exc.reason}") from exc
                 time.sleep(2**attempt)
         raise AssertionError("unreachable")
-
