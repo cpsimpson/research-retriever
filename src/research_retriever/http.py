@@ -59,13 +59,15 @@ class JsonHttpClient:
                 if not retryable or attempt == self.max_attempts - 1:
                     detail = exc.read().decode(errors="replace")[:500]
                     raise HttpError(
-                        f"{request.method} {request.full_url}: {exc.code} {detail}"
+                        f"{request.get_method()} {request.full_url}: {exc.code} {detail}"
                     ) from exc
                 retry_after = exc.headers.get("Retry-After")
                 delay = float(retry_after) if retry_after and retry_after.isdigit() else 2**attempt
                 time.sleep(min(delay, 30))
             except urllib.error.URLError as exc:
                 if attempt == self.max_attempts - 1:
-                    raise HttpError(f"{request.method} {request.full_url}: {exc.reason}") from exc
+                    raise HttpError(
+                        f"{request.get_method()} {request.full_url}: {exc.reason}"
+                    ) from exc
                 time.sleep(2**attempt)
         raise AssertionError("unreachable")
