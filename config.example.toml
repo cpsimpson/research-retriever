@@ -1,0 +1,34 @@
+# API secrets are supplied through environment variables, never in this file.
+
+[app]
+vault_path = "/absolute/path/to/Obsidian Vault"
+state_path = "/absolute/path/to/research-retriever/catalog.sqlite3"
+notes_folder = "Literature Notes"
+roundup_folder = "Research Roundups"
+daily_limit = 8
+# Approximately 40% of each round-up is reserved for existing unread Zotero papers.
+backlog_fraction = 0.4
+
+[zotero]
+library_type = "user" # Use "group" for a group library.
+library_id = "1234567"
+api_key_env = "ZOTERO_API_KEY"
+inbox_collection = "Research Retriever/Inbox"
+references_collection = "Research Retriever/References"
+
+[providers]
+# Used to identify polite Crossref and OpenAlex API traffic.
+email = "researcher@example.edu"
+openalex_api_key_env = "OPENALEX_API_KEY"
+analysis_provider = "openai"
+analysis_api_key_env = "OPENAI_API_KEY"
+analysis_model = "gpt-5.6-luna"
+
+[[topics]]
+id = "example-topic"
+name = "Example research topic"
+query = "How does the phenomenon affect the population under the specified conditions?"
+interest = "I study this phenomenon and want empirical work using rigorous longitudinal methods."
+include_terms = ["longitudinal"]
+exclude_terms = ["editorial"]
+
