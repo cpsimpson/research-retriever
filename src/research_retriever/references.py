@@ -116,7 +116,8 @@ class OllamaReferenceParser:
 def reference_section(document_text: str) -> str:
     matches = list(
         re.finditer(
-            r"(?im)^\s*(?:references|bibliography|works cited)\s*$",
+            r"(?im)^\s*(?:references(?:\s+(?:and|&)\s+recommended\s+reading)?|"
+            r"bibliography|works cited)\s*:?\s*$",
             document_text,
         )
     )

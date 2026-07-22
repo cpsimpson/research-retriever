@@ -34,6 +34,15 @@ def test_reference_section_uses_last_bibliography_heading() -> None:
     assert reference_section(text) == "Lovelace, A. (1843). Notes."
 
 
+@pytest.mark.parametrize(
+    "heading",
+    ["References and Recommended Reading", "References & Recommended Reading:"],
+)
+def test_reference_section_accepts_recommended_reading_headings(heading) -> None:
+    text = f"Body text\n\n{heading}\nLovelace, A. (1843). Notes."
+    assert reference_section(text) == "Lovelace, A. (1843). Notes."
+
+
 def test_reference_section_requires_a_heading() -> None:
     with pytest.raises(RuntimeError, match="heading"):
         reference_section("A document without a bibliography heading." * 3)
