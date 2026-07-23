@@ -22,6 +22,7 @@ from research_retriever.settings import (
     starter_config,
 )
 from research_retriever.store import PaperStore
+from research_retriever.todoist import TodoistClient
 from research_retriever.workflows import ResearchWorkflow
 from research_retriever.zotero import ZoteroClient
 
@@ -34,6 +35,7 @@ class Runtime:
     workflow: ResearchWorkflow
     obsidian: ObsidianWriter
     analyzer: Analyzer
+    todoist: TodoistClient
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
     daily.add_argument("--date", type=date.fromisoformat, default=None, help="Date in YYYY-MM-DD.")
     daily.add_argument(
         "--limit", type=int, default=None, help="Override the configured paper count."
+    )
+    daily.add_argument(
+        "--todoist",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Create or suppress the configured Todoist roundup reminder.",
     )
 
     harvest = subparsers.add_parser(
@@ -177,7 +185,11 @@ def _runtime(config_path: Path | None) -> Runtime:
         obsidian,
         reference_parser,
     )
-    return Runtime(settings, store, zotero, workflow, obsidian, analyzer)
+    todoist = TodoistClient(
+        settings.todoist.api_token,
+        settings.todoist.daily_template,
+    )
+    return Runtime(settings, store, zotero, workflow, obsidian, analyzer, todoist)
 
 
 def _init(args: argparse.Namespace) -> int:
@@ -223,6 +235,14 @@ def _doctor(runtime: Runtime, _args: argparse.Namespace) -> int:
             f"{runtime.settings.providers.analysis_provider} "
             f"({runtime.settings.providers.analysis_model})"
         )
+    if runtime.settings.todoist.enabled:
+        if runtime.settings.todoist.api_token:
+            print("Todoist daily reminders: enabled")
+        else:
+            problems.append(
+                f"{runtime.settings.todoist.api_token_env} is unset; "
+                "Todoist reminders are unavailable"
+            )
     if problems:
         for problem in problems:
             print(f"- {problem}")
@@ -276,6 +296,19 @@ def _daily(runtime: Runtime, args: argparse.Namespace) -> int:
         _combined_interest(runtime.settings),
     )
     print(f"Created a {len(papers)}-paper round-up at {path}")
+    todoist_enabled = runtime.settings.todoist.enabled if args.todoist is None else args.todoist
+    reminder_key = f"todoist_roundup:{roundup_date.isoformat()}"
+    if todoist_enabled and not runtime.store.get_sync_state(reminder_key):
+        runtime.todoist.create_roundup_reminder(
+            roundup_date,
+            len(papers),
+            runtime.settings.app.vault_path,
+            path,
+        )
+        runtime.store.set_sync_state(reminder_key, "created")
+        print("Created the Todoist daily-roundup reminder.")
+    elif todoist_enabled:
+        print("Todoist daily-roundup reminder already created; skipped duplicate.")
     return 0
 
 

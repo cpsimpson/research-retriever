@@ -25,6 +25,11 @@ analysis_model = "gemma4:12b"
 analysis_base_url = "http://127.0.0.1:11434"
 analysis_api_key_env = "OPENAI_API_KEY" # Used only when analysis_provider = "openai".
 
+[todoist]
+enabled = false
+api_token_env = "TODOIST_API_TOKEN"
+daily_template = "Review research roundup for {{date}} ({{count}} papers) {{obsidian_uri}} {{due}} #Reading"
+
 [[topics]]
 id = "example-topic"
 name = "Example research topic"

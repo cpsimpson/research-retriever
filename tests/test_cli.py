@@ -12,6 +12,11 @@ def test_parser_accepts_daily_date() -> None:
     assert args.date.isoformat() == "2026-07-22"
 
 
+def test_parser_accepts_todoist_override() -> None:
+    assert build_parser().parse_args(["daily", "--todoist"]).todoist is True
+    assert build_parser().parse_args(["daily", "--no-todoist"]).todoist is False
+
+
 def test_root_help_is_successful(capsys) -> None:
     assert main([]) == 0
     assert "Discover and organize research papers" in capsys.readouterr().out

@@ -167,6 +167,23 @@ Create today's bounded reading list:
 research-retriever daily
 ```
 
+### Todoist reminder for the daily roundup
+
+The existing Zotero Todoist Bridge remains the convenient manual action for individual Zotero
+items. Research Retriever can separately create one idempotent reminder for the generated Obsidian
+roundup. Put the same personal token in the `TODOIST_API_TOKEN` environment variable and enable:
+
+```toml
+[todoist]
+enabled = true
+api_token_env = "TODOIST_API_TOKEN"
+daily_template = "Review research roundup for {{date}} ({{count}} papers) {{obsidian_uri}} {{due}} #Reading"
+```
+
+`research-retriever daily` then creates the roundup and one Todoist task containing a direct Obsidian
+link. Re-running it for the same date does not create a duplicate. Use `daily --todoist` for a
+one-time override or `daily --no-todoist` to suppress the configured reminder.
+
 Harvest the references of a cataloged paper:
 
 ```console

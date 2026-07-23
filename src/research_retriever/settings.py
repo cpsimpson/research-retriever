@@ -62,10 +62,24 @@ class AppSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class TodoistSettings:
+    enabled: bool = False
+    api_token_env: str = "TODOIST_API_TOKEN"
+    daily_template: str = (
+        "Review research roundup for {{date}} ({{count}} papers) {{obsidian_uri}} {{due}} #Reading"
+    )
+
+    @property
+    def api_token(self) -> str:
+        return os.environ.get(self.api_token_env, "")
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     app: AppSettings
     zotero: ZoteroSettings
     providers: ProviderSettings
+    todoist: TodoistSettings = field(default_factory=TodoistSettings)
     topics: tuple[TopicSettings, ...] = field(default_factory=tuple)
 
 
@@ -95,6 +109,7 @@ def load_settings(path: Path | str | None = None) -> Settings:
     app = data.get("app", {})
     providers = data.get("providers", {})
     zotero = data.get("zotero", {})
+    todoist = data.get("todoist", {})
     return Settings(
         app=AppSettings(
             vault_path=Path(_required(app, "vault_path")).expanduser(),
@@ -121,6 +136,15 @@ def load_settings(path: Path | str | None = None) -> Settings:
             analysis_model=providers.get("analysis_model", "gpt-5.6-luna"),
             analysis_base_url=providers.get("analysis_base_url", "http://127.0.0.1:11434"),
         ),
+        todoist=TodoistSettings(
+            enabled=bool(todoist.get("enabled", False)),
+            api_token_env=todoist.get("api_token_env", "TODOIST_API_TOKEN"),
+            daily_template=todoist.get(
+                "daily_template",
+                "Review research roundup for {{date}} ({{count}} papers) "
+                "{{obsidian_uri}} {{due}} #Reading",
+            ),
+        ),
         topics=tuple(
             TopicSettings(
                 id=_required(topic, "id"),
@@ -137,7 +161,10 @@ def load_settings(path: Path | str | None = None) -> Settings:
 
 def starter_config(vault_path: Path, library_id: str, email: str) -> str:
     state = default_state_path()
-    return f'''# Secrets are read from ZOTERO_API_KEY and OPENALEX_API_KEY.
+    todoist_template = (
+        "Review research roundup for {{date}} ({{count}} papers) {{obsidian_uri}} {{due}} #Reading"
+    )
+    return f'''# Secrets are read from ZOTERO_API_KEY, OPENALEX_API_KEY, and TODOIST_API_TOKEN.
 [app]
 vault_path = "{vault_path.expanduser()}"
 state_path = "{state}"
@@ -160,6 +187,11 @@ analysis_provider = "openai"
 analysis_api_key_env = "OPENAI_API_KEY"
 analysis_model = "gpt-5.6-luna"
 analysis_base_url = "http://127.0.0.1:11434"
+
+[todoist]
+enabled = false
+api_token_env = "TODOIST_API_TOKEN"
+daily_template = "{todoist_template}"
 
 [[topics]]
 id = "example-topic"
