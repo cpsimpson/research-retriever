@@ -184,6 +184,37 @@ daily_template = "Review research roundup for {{date}} ({{count}} papers) {{obsi
 link. Re-running it for the same date does not create a duplicate. Use `daily --todoist` for a
 one-time override or `daily --no-todoist` to suppress the configured reminder.
 
+### Reuse the existing zotero-LLM index
+
+Research Retriever delegates PDF parsing, cached plain text, embeddings, semantic search, and Q&A to
+the existing `zotero-LLM` application instead of maintaining a second vector index. Configure its
+installed command and existing data locations:
+
+```toml
+[rag]
+enabled = true
+command = "/absolute/path/to/zotero-LLM/.venv/bin/zotero-llm"
+source_dir = "~/Zotero/storage"
+parsed_text_dir = "/absolute/path/to/zotero-LLM/parsed-pdfs"
+qdrant_path = "/absolute/path/to/zotero-LLM/qdrant-data"
+qdrant_url = "http://127.0.0.1:6333"
+collection = "zotero_pdf_chunks"
+embedding_model = "nomic-embed-text"
+chat_model = "llama3.2"
+ollama_host = "http://127.0.0.1:11434"
+```
+
+Start the services using `zotero-LLM/scripts/start_services.sh`, then use the integrated commands:
+
+```console
+research-retriever rag index
+research-retriever rag search "mental state attribution"
+research-retriever rag ask "Which methods are used to measure mind perception?"
+```
+
+`rag index` retains `zotero-LLM`'s incremental behavior: unchanged PDFs reuse their parsed text and
+vectors. Set `qdrant_url = ""` only when intentionally using its slower embedded Qdrant mode.
+
 Harvest the references of a cataloged paper:
 
 ```console

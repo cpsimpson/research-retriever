@@ -75,11 +75,26 @@ class TodoistSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class RagSettings:
+    enabled: bool = False
+    command: str = "zotero-llm"
+    source_dir: Path = field(default_factory=lambda: Path.home() / "Zotero/storage")
+    parsed_text_dir: Path = field(default_factory=lambda: default_state_dir() / "parsed-pdfs")
+    qdrant_path: Path = field(default_factory=lambda: default_state_dir() / "qdrant-data")
+    qdrant_url: str = "http://127.0.0.1:6333"
+    collection: str = "zotero_pdf_chunks"
+    embedding_model: str = "nomic-embed-text"
+    chat_model: str = "llama3.2"
+    ollama_host: str = "http://127.0.0.1:11434"
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     app: AppSettings
     zotero: ZoteroSettings
     providers: ProviderSettings
     todoist: TodoistSettings = field(default_factory=TodoistSettings)
+    rag: RagSettings = field(default_factory=RagSettings)
     topics: tuple[TopicSettings, ...] = field(default_factory=tuple)
 
 
@@ -95,10 +110,14 @@ def default_config_path() -> Path:
 
 
 def default_state_path() -> Path:
+    return default_state_dir() / "catalog.sqlite3"
+
+
+def default_state_dir() -> Path:
     if sys.platform == "darwin":
-        return Path.home() / "Library/Application Support/research-retriever/catalog.sqlite3"
+        return Path.home() / "Library/Application Support/research-retriever"
     return Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / (
-        "research-retriever/catalog.sqlite3"
+        "research-retriever"
     )
 
 
@@ -110,6 +129,7 @@ def load_settings(path: Path | str | None = None) -> Settings:
     providers = data.get("providers", {})
     zotero = data.get("zotero", {})
     todoist = data.get("todoist", {})
+    rag = data.get("rag", {})
     return Settings(
         app=AppSettings(
             vault_path=Path(_required(app, "vault_path")).expanduser(),
@@ -144,6 +164,22 @@ def load_settings(path: Path | str | None = None) -> Settings:
                 "Review research roundup for {{date}} ({{count}} papers) "
                 "{{obsidian_uri}} {{due}} #Reading",
             ),
+        ),
+        rag=RagSettings(
+            enabled=bool(rag.get("enabled", False)),
+            command=str(rag.get("command", "zotero-llm")),
+            source_dir=Path(rag.get("source_dir", Path.home() / "Zotero/storage")).expanduser(),
+            parsed_text_dir=Path(
+                rag.get("parsed_text_dir", default_state_dir() / "parsed-pdfs")
+            ).expanduser(),
+            qdrant_path=Path(
+                rag.get("qdrant_path", default_state_dir() / "qdrant-data")
+            ).expanduser(),
+            qdrant_url=str(rag.get("qdrant_url", "http://127.0.0.1:6333")),
+            collection=str(rag.get("collection", "zotero_pdf_chunks")),
+            embedding_model=str(rag.get("embedding_model", "nomic-embed-text")),
+            chat_model=str(rag.get("chat_model", "llama3.2")),
+            ollama_host=str(rag.get("ollama_host", "http://127.0.0.1:11434")),
         ),
         topics=tuple(
             TopicSettings(
@@ -192,6 +228,18 @@ analysis_base_url = "http://127.0.0.1:11434"
 enabled = false
 api_token_env = "TODOIST_API_TOKEN"
 daily_template = "{todoist_template}"
+
+[rag]
+enabled = false
+command = "zotero-llm"
+source_dir = "~/Zotero/storage"
+parsed_text_dir = "{default_state_dir() / "parsed-pdfs"}"
+qdrant_path = "{default_state_dir() / "qdrant-data"}"
+qdrant_url = "http://127.0.0.1:6333"
+collection = "zotero_pdf_chunks"
+embedding_model = "nomic-embed-text"
+chat_model = "llama3.2"
+ollama_host = "http://127.0.0.1:11434"
 
 [[topics]]
 id = "example-topic"

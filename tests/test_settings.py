@@ -16,6 +16,10 @@ email = "researcher@example.test"
 [todoist]
 enabled = true
 api_token_env = "MY_TODOIST_TOKEN"
+[rag]
+enabled = true
+command = "/opt/zotero-llm"
+collection = "papers"
 [[topics]]
 id = "topic"
 name = "Topic"
@@ -32,3 +36,6 @@ interest = "It matters"
     assert settings.providers.analysis_base_url == "http://127.0.0.1:11434"
     assert settings.todoist.enabled is True
     assert settings.todoist.api_token == "todoist-secret"
+    assert settings.rag.enabled is True
+    assert settings.rag.command == "/opt/zotero-llm"
+    assert settings.rag.collection == "papers"

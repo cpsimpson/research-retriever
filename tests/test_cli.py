@@ -17,6 +17,13 @@ def test_parser_accepts_todoist_override() -> None:
     assert build_parser().parse_args(["daily", "--no-todoist"]).todoist is False
 
 
+def test_parser_accepts_nested_rag_commands() -> None:
+    args = build_parser().parse_args(["rag", "search", "consciousness", "--limit", "3"])
+    assert args.rag_command == "search"
+    assert args.query == "consciousness"
+    assert args.limit == 3
+
+
 def test_root_help_is_successful(capsys) -> None:
     assert main([]) == 0
     assert "Discover and organize research papers" in capsys.readouterr().out

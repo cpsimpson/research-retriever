@@ -14,6 +14,7 @@ from research_retriever.analysis import Analyzer, OllamaAnalyzer, OpenAIAnalyzer
 from research_retriever.models import ReadingStatus
 from research_retriever.obsidian import ObsidianWriter
 from research_retriever.providers import CrossrefProvider, OpenAlexProvider
+from research_retriever.rag import RagClient
 from research_retriever.references import HeuristicReferenceParser, OllamaReferenceParser
 from research_retriever.settings import (
     Settings,
@@ -36,6 +37,7 @@ class Runtime:
     obsidian: ObsidianWriter
     analyzer: Analyzer
     todoist: TodoistClient
+    rag: RagClient
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,6 +73,16 @@ def build_parser() -> argparse.ArgumentParser:
     daily.add_argument(
         "--limit", type=int, default=None, help="Override the configured paper count."
     )
+
+    rag = subparsers.add_parser("rag", help="Use the existing zotero-LLM local RAG index.")
+    rag_commands = rag.add_subparsers(dest="rag_command", required=True)
+    rag_commands.add_parser("index", help="Incrementally parse and index Zotero PDFs.")
+    rag_search = rag_commands.add_parser("search", help="Search indexed Zotero PDF chunks.")
+    rag_search.add_argument("query")
+    rag_search.add_argument("--limit", type=int, default=8)
+    rag_ask = rag_commands.add_parser("ask", help="Answer a question from indexed Zotero PDFs.")
+    rag_ask.add_argument("question")
+    rag_ask.add_argument("--limit", type=int, default=6)
     daily.add_argument(
         "--todoist",
         action=argparse.BooleanOptionalAction,
@@ -121,6 +133,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "sync": _sync,
             "discover": _discover,
             "daily": _daily,
+            "rag": _rag,
             "harvest-references": _harvest_references,
             "analyze": _analyze,
             "check-versions": _check_versions,
@@ -189,7 +202,8 @@ def _runtime(config_path: Path | None) -> Runtime:
         settings.todoist.api_token,
         settings.todoist.daily_template,
     )
-    return Runtime(settings, store, zotero, workflow, obsidian, analyzer, todoist)
+    rag = RagClient(settings.rag)
+    return Runtime(settings, store, zotero, workflow, obsidian, analyzer, todoist, rag)
 
 
 def _init(args: argparse.Namespace) -> int:
@@ -243,6 +257,11 @@ def _doctor(runtime: Runtime, _args: argparse.Namespace) -> int:
                 f"{runtime.settings.todoist.api_token_env} is unset; "
                 "Todoist reminders are unavailable"
             )
+    if runtime.settings.rag.enabled:
+        if runtime.rag.available():
+            print("Local RAG: zotero-LLM command available")
+        else:
+            problems.append(f"zotero-LLM command is unavailable: {runtime.settings.rag.command}")
     if problems:
         for problem in problems:
             print(f"- {problem}")
@@ -325,6 +344,18 @@ def _harvest_references(runtime: Runtime, args: argparse.Namespace) -> int:
         print(
             f"Skipped {result.unresolved} PDF reference(s) that could not be matched confidently."
         )
+    return 0
+
+
+def _rag(runtime: Runtime, args: argparse.Namespace) -> int:
+    if args.rag_command == "index":
+        runtime.rag.ingest()
+    elif args.rag_command == "search":
+        runtime.rag.search(args.query, args.limit)
+    elif args.rag_command == "ask":
+        runtime.rag.ask(args.question, args.limit)
+    else:
+        raise ValueError(f"Unknown RAG command: {args.rag_command}")
     return 0
 
 

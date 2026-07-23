@@ -6,6 +6,9 @@
 Topic profiles ──> OpenAlex discovery ──> local SQLite catalog
                                               │
 Existing Zotero library ──────────────────────┤
+Zotero PDF storage ──> zotero-LLM ──> cached text + Qdrant index
+                                            │
+                                            └──> RAG index/search/ask commands
                                               │
 Crossref versions/references ─────────────────┤
                                               v
@@ -19,10 +22,14 @@ Crossref versions/references ─────────────────
                                               │
                                               v
                                    dated research round-up
+                                              │
+                                              └──> optional Todoist reminder
 ```
 
 The SQLite catalog is coordination state, not a replacement for either application. It stores stable
 paper identities, relationships, provenance, read state, note locations, and round-up appearances.
+Plain text, chunks, embeddings, and vector-index lifecycle remain owned by `zotero-LLM`; Research
+Retriever invokes that application through its CLI rather than duplicating the index.
 
 ## Stable identity and deduplication
 
