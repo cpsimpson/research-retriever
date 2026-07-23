@@ -101,6 +101,28 @@ class PaperStore:
         now = datetime.now(UTC).isoformat()
         key = paper.canonical_key
         with self.connect() as connection:
+            identity_rows = connection.execute(
+                """
+                SELECT canonical_key, record_json, created_at FROM papers
+                WHERE canonical_key != ?
+                  AND ((? IS NOT NULL AND zotero_key = ?)
+                    OR (? IS NOT NULL AND doi = ?))
+                """,
+                (key, paper.zotero_key, paper.zotero_key, paper.doi, paper.doi),
+            ).fetchall()
+            created_at = min((row["created_at"] for row in identity_rows), default=now)
+            for row in identity_rows:
+                previous = Paper.from_json(row["record_json"])
+                paper.obsidian_path = paper.obsidian_path or previous.obsidian_path
+                paper.metadata = {**previous.metadata, **paper.metadata}
+            if identity_rows:
+                old_keys = [row["canonical_key"] for row in identity_rows]
+                placeholders = ",".join("?" for _ in old_keys)
+                connection.execute(
+                    f"UPDATE papers SET doi = NULL, zotero_key = NULL "
+                    f"WHERE canonical_key IN ({placeholders})",
+                    old_keys,
+                )
             connection.execute(
                 """
                 INSERT INTO papers (
@@ -137,10 +159,12 @@ class PaperStore:
                     paper.zotero_key,
                     paper.obsidian_path,
                     paper.to_json(),
-                    now,
+                    created_at,
                     now,
                 ),
             )
+            for row in identity_rows:
+                _migrate_paper_key(connection, row["canonical_key"], key)
         return key
 
     def get(self, key: str) -> Paper | None:
@@ -333,3 +357,60 @@ class PaperStore:
                 "SELECT value FROM sync_state WHERE key = ?", (key,)
             ).fetchone()
         return row["value"] if row else None
+
+
+def _migrate_paper_key(connection: sqlite3.Connection, old_key: str, new_key: str) -> None:
+    relationships = connection.execute(
+        "SELECT * FROM relationships WHERE source_key = ? OR target_key = ?",
+        (old_key, old_key),
+    ).fetchall()
+    for row in relationships:
+        source = new_key if row["source_key"] == old_key else row["source_key"]
+        target = new_key if row["target_key"] == old_key else row["target_key"]
+        if source == target:
+            continue
+        connection.execute(
+            """
+            INSERT INTO relationships (
+                source_key, target_key, relationship, evidence_source, verified, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_key, target_key, relationship) DO UPDATE SET
+                evidence_source = excluded.evidence_source,
+                verified = MAX(relationships.verified, excluded.verified)
+            """,
+            (
+                source,
+                target,
+                row["relationship"],
+                row["evidence_source"],
+                row["verified"],
+                row["created_at"],
+            ),
+        )
+    for row in connection.execute(
+        "SELECT * FROM topic_matches WHERE paper_key = ?", (old_key,)
+    ).fetchall():
+        connection.execute(
+            """
+            INSERT INTO topic_matches(paper_key, topic_id, relevance, explanation)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(paper_key, topic_id) DO NOTHING
+            """,
+            (new_key, row["topic_id"], row["relevance"], row["explanation"]),
+        )
+    for row in connection.execute(
+        "SELECT * FROM roundup_appearances WHERE paper_key = ?", (old_key,)
+    ).fetchall():
+        connection.execute(
+            """
+            INSERT INTO roundup_appearances(paper_key, roundup_date, position)
+            VALUES (?, ?, ?)
+            ON CONFLICT(paper_key, roundup_date) DO UPDATE SET
+                position = MIN(roundup_appearances.position, excluded.position)
+            """,
+            (new_key, row["roundup_date"], row["position"]),
+        )
+    connection.execute(
+        "DELETE FROM relationships WHERE source_key = ? OR target_key = ?", (old_key, old_key)
+    )
+    connection.execute("DELETE FROM papers WHERE canonical_key = ?", (old_key,))

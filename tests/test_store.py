@@ -76,3 +76,56 @@ def test_store_migrates_catalogs_created_before_citation_keys(tmp_path) -> None:
     with store.connect() as connection:
         columns = {row["name"] for row in connection.execute("PRAGMA table_info(papers)")}
     assert "citation_key" in columns
+
+
+def test_upsert_migrates_identity_when_zotero_item_gains_a_doi(tmp_path) -> None:
+    store = PaperStore(tmp_path / "catalog.sqlite3")
+    store.initialize()
+    original = Paper(
+        title="A paper without an identifier",
+        zotero_key="ZOTERO12",
+        obsidian_path="Literature/original.md",
+        metadata={"manual_state": "preserve"},
+    )
+    citing = Paper(title="Citing paper", doi="10.1/citing")
+    old_key = store.upsert(original)
+    store.upsert(citing)
+    store.add_relationship(
+        PaperRelationship(
+            citing.canonical_key,
+            old_key,
+            RelationshipType.REFERENCES,
+            "test fixture",
+            True,
+        )
+    )
+    store.record_topic_match(old_key, "topic", 0.9, "matched")
+    store.record_roundup("2026-07-22", [original])
+
+    updated = Paper(
+        title="A paper without an identifier",
+        doi="10.1/identified",
+        zotero_key="ZOTERO12",
+    )
+    new_key = store.upsert(updated)
+
+    migrated = store.get(new_key)
+    assert migrated is not None
+    assert migrated.obsidian_path == "Literature/original.md"
+    assert migrated.metadata["manual_state"] == "preserve"
+    assert store.get(old_key) is None
+    relationship = store.relationships_from(citing.canonical_key)[0]
+    assert relationship.target_key == new_key
+    with store.connect() as connection:
+        assert (
+            connection.execute(
+                "SELECT paper_key FROM topic_matches WHERE topic_id = 'topic'"
+            ).fetchone()["paper_key"]
+            == new_key
+        )
+        assert (
+            connection.execute(
+                "SELECT paper_key FROM roundup_appearances WHERE roundup_date = '2026-07-22'"
+            ).fetchone()["paper_key"]
+            == new_key
+        )
