@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from research_retriever.http import JsonHttpClient
+from research_retriever.http import HttpError, JsonHttpClient
 from research_retriever.models import normalize_doi
 
 
@@ -49,43 +50,58 @@ class OllamaReferenceParser:
         model: str,
         base_url: str = "http://127.0.0.1:11434",
         client: JsonHttpClient | None = None,
+        progress: Callable[[str], None] | None = None,
     ) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.client = client or JsonHttpClient(
             user_agent="research-retriever/0.1",
-            timeout=300,
+            timeout=600,
+            max_attempts=1,
         )
+        self.progress = progress
 
     def parse(self, document_text: str) -> list[ExtractedReference]:
         section = reference_section(document_text)
         extracted: list[ExtractedReference] = []
-        for chunk in _chunks(section):
-            response = self.client.request_json(
-                "POST",
-                f"{self.base_url}/api/chat",
-                {
-                    "model": self.model,
-                    "stream": False,
-                    "think": False,
-                    "format": REFERENCE_SCHEMA,
-                    "options": {"temperature": 0},
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Extract bibliography entries exactly and conservatively. "
-                                "Do not invent missing titles, authors, years, or DOIs. Return "
-                                "only JSON matching the supplied schema."
-                            ),
-                        },
-                        {
-                            "role": "user",
-                            "content": f"Extract every complete reference in this text:\n\n{chunk}",
-                        },
-                    ],
-                },
-            )
+        chunks = _chunks(section)
+        for index, chunk in enumerate(chunks, 1):
+            if self.progress:
+                self.progress(
+                    f"Extracting PDF references with Ollama (batch {index}/{len(chunks)})..."
+                )
+            try:
+                response = self.client.request_json(
+                    "POST",
+                    f"{self.base_url}/api/chat",
+                    {
+                        "model": self.model,
+                        "stream": False,
+                        "think": False,
+                        "format": REFERENCE_SCHEMA,
+                        "options": {"temperature": 0},
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Extract bibliography entries exactly and conservatively. "
+                                    "Do not invent missing titles, authors, years, or DOIs. Return "
+                                    "only JSON matching the supplied schema."
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Extract every complete reference in this text:\n\n" + chunk
+                                ),
+                            },
+                        ],
+                    },
+                )
+            except (HttpError, TimeoutError) as exc:
+                raise RuntimeError(
+                    f"Ollama reference extraction failed in batch {index}/{len(chunks)}: {exc}"
+                ) from exc
             content = (response.get("message") or {}).get("content")
             if not content:
                 raise RuntimeError("Ollama returned no reference extraction content")
@@ -131,7 +147,7 @@ def reference_section(document_text: str) -> str:
     return section
 
 
-def _chunks(text: str, maximum: int = 14_000) -> list[str]:
+def _chunks(text: str, maximum: int = 4_500) -> list[str]:
     chunks: list[str] = []
     remaining = text.strip()
     while remaining:

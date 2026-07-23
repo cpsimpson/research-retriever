@@ -49,8 +49,10 @@ def test_reference_section_requires_a_heading() -> None:
 
 
 def test_ollama_parser_returns_conservative_structured_citations() -> None:
-    parser = OllamaReferenceParser("model", client=OllamaClient())
+    messages = []
+    parser = OllamaReferenceParser("model", client=OllamaClient(), progress=messages.append)
     references = parser.parse("Body\n\nReferences\n" + "Lovelace citation " * 10)
     assert references[0].title == "Notes"
     assert references[0].year == 1843
     assert references[0].doi == "10.1/notes"
+    assert messages == ["Extracting PDF references with Ollama (batch 1/1)..."]

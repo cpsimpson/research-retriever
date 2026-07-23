@@ -147,6 +147,7 @@ def _runtime(config_path: Path | None) -> Runtime:
         reference_parser = OllamaReferenceParser(
             settings.providers.analysis_model,
             settings.providers.analysis_base_url,
+            progress=lambda message: print(message, file=sys.stderr, flush=True),
         )
     elif provider == "openai" and settings.providers.analysis_api_key:
         analyzer = OpenAIAnalyzer(

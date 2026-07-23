@@ -60,3 +60,13 @@ def test_http_errors_redact_api_keys_from_urls(monkeypatch) -> None:
     assert "super-secret" not in str(captured.value)
     assert "api_key=%5BREDACTED%5D" in str(captured.value)
     assert "invalid API key [REDACTED]" in str(captured.value)
+
+
+def test_timeout_reports_endpoint_and_duration(monkeypatch) -> None:
+    def fail(*_args, **_kwargs):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("urllib.request.urlopen", fail)
+
+    with pytest.raises(HttpError, match=r"GET https://example\.test/resource: timed out after 12"):
+        JsonHttpClient("test", timeout=12, max_attempts=1).get("https://example.test/resource")

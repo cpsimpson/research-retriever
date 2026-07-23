@@ -75,6 +75,13 @@ class JsonHttpClient:
                         f"{request.get_method()} {_safe_url(request.full_url)}: {exc.reason}"
                     ) from exc
                 time.sleep(2**attempt)
+            except TimeoutError as exc:
+                if attempt == self.max_attempts - 1:
+                    raise HttpError(
+                        f"{request.get_method()} {_safe_url(request.full_url)}: "
+                        f"timed out after {self.timeout:g} seconds"
+                    ) from exc
+                time.sleep(2**attempt)
         raise AssertionError("unreachable")
 
 
