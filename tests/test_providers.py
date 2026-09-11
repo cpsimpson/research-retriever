@@ -196,3 +196,59 @@ def test_crossref_reference_uses_volume_title_when_no_unstructured_text() -> Non
         "10.1/source"
     )
     assert references[0].title == "A Whole Book"
+
+
+def test_crossref_reference_keeps_lowercase_surname_particles() -> None:
+    client = FakeClient(
+        {
+            "message": {
+                "reference": [
+                    {
+                        "unstructured": (
+                            "Kohn S. C., de Visser E. J., Wiese E. (2021). Measurement of "
+                            "trust in automation. Frontiers in Psychology, 12, 1–23."
+                        )
+                    }
+                ]
+            }
+        }
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert [author.name for author in references[0].authors] == [
+        "S. C. Kohn",
+        "E. J. de Visser",
+        "E. Wiese",
+    ]
+
+
+def test_crossref_reference_tolerates_comma_typo_between_initials() -> None:
+    client = FakeClient(
+        {
+            "message": {
+                "reference": [
+                    {
+                        "unstructured": (
+                            "Cooke J, N. Cummings L. M. (2021). Some title. A journal, 1(1), 1."
+                        )
+                    }
+                ]
+            }
+        }
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert [author.name for author in references[0].authors] == [
+        "J, N. Cooke",
+        "L. M. Cummings",
+    ]
+
+
+def test_crossref_reference_author_split_does_not_swallow_next_surname() -> None:
+    """A comma with no period anywhere nearby must not be treated as an initial
+    separator, or it would truncate the following author's surname to one letter."""
+    from research_retriever.providers.crossref import _parse_authors
+
+    assert _parse_authors("Smith A, Jones B.") == ("B. Jones",)

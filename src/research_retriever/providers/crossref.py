@@ -134,8 +134,14 @@ UNSTRUCTURED_CITATION_PATTERN = re.compile(
 )
 URL_PATTERN = re.compile(r"https?://\S+")
 SURNAME_FIRST_PATTERN = re.compile(r"^(?P<surname>\S+),?\s+(?P<initials>(?:\S+\.\s*)+)$")
+SURNAME_PARTICLES = "de|van|von|der|den|del|la|le|di|da|dos|das|bin|ibn|el|al"
+INITIAL_TOKEN = (
+    r"[A-ZÀ-Þ]\.\s*"  # "J."
+    r"|[A-ZÀ-Þ],(?=\s*[A-ZÀ-Þ]\.)\s*"  # "J," when a proper ". "-terminated initial follows
+)
 AUTHOR_LIST_TOKEN_PATTERN = re.compile(
-    r"(?P<surname>[A-ZÀ-Þ][A-Za-zÀ-ÿ'-]+),?\s+(?P<initials>(?:[A-ZÀ-Þ]\.\s*)+)"
+    rf"(?P<surname>(?:(?:{SURNAME_PARTICLES})\s+)*[A-ZÀ-Þ][A-Za-zÀ-ÿ'-]+),?\s+"
+    rf"(?P<initials>(?:{INITIAL_TOKEN})+)"
 )
 
 

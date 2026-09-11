@@ -1,6 +1,22 @@
-from research_retriever.models import Origin, Paper, ReadingStatus, WorkType
+from research_retriever.models import Author, Origin, Paper, ReadingStatus, WorkType
 from research_retriever.settings import ZoteroSettings
-from research_retriever.zotero import ZoteroClient, paper_from_zotero
+from research_retriever.zotero import ZoteroClient, _author_payload, paper_from_zotero
+
+
+def test_author_payload_keeps_surname_particle_with_last_name() -> None:
+    assert _author_payload(Author("E. J. de Visser")) == {
+        "creatorType": "author",
+        "firstName": "E. J.",
+        "lastName": "de Visser",
+    }
+
+
+def test_author_payload_splits_simple_name_on_last_space() -> None:
+    assert _author_payload(Author("F. Å. Nielsen")) == {
+        "creatorType": "author",
+        "firstName": "F. Å.",
+        "lastName": "Nielsen",
+    }
 
 
 def test_manual_zotero_item_is_classified_and_read_status_is_imported() -> None:

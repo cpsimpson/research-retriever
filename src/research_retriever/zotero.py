@@ -313,11 +313,38 @@ def paper_from_zotero(item: dict[str, Any]) -> Paper:
     )
 
 
+SURNAME_PARTICLES = {
+    "de",
+    "van",
+    "von",
+    "der",
+    "den",
+    "del",
+    "la",
+    "le",
+    "di",
+    "da",
+    "dos",
+    "das",
+    "bin",
+    "ibn",
+    "el",
+    "al",
+}
+
+
 def _author_payload(author: Author) -> dict[str, str]:
-    parts = author.name.rsplit(" ", 1)
+    parts = author.name.split(" ")
     if len(parts) == 1:
         return {"creatorType": "author", "name": author.name}
-    return {"creatorType": "author", "firstName": parts[0], "lastName": parts[1]}
+    split_index = len(parts) - 1
+    while split_index > 0 and parts[split_index - 1].lower() in SURNAME_PARTICLES:
+        split_index -= 1
+    return {
+        "creatorType": "author",
+        "firstName": " ".join(parts[:split_index]),
+        "lastName": " ".join(parts[split_index:]),
+    }
 
 
 def _from_zotero_type(item_type: str | None, tags: set[str | None]) -> WorkType:
