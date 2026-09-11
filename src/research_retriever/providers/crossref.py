@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 from collections.abc import Iterable
 from typing import Any
@@ -89,11 +90,12 @@ class CrossrefProvider:
         output: list[Paper] = []
         for index, reference in enumerate(message.get("reference") or [], 1):
             raw_doi = reference.get("DOI") or reference.get("doi")
+            unstructured = reference.get("unstructured")
             title = (
                 reference.get("article-title")
                 or reference.get("volume-title")
                 or reference.get("series-title")
-                or reference.get("unstructured")
+                or (_title_from_unstructured(unstructured) if unstructured else None)
                 or f"Unresolved reference {index} from {normalize_doi(doi)}"
             )
             raw_year = str(reference.get("year") or "")
@@ -119,3 +121,12 @@ class CrossrefProvider:
 
 def _as_list(value: Any) -> Iterable[Any]:
     return value if isinstance(value, list) else [value]
+
+
+UNSTRUCTURED_TITLE_PATTERN = re.compile(r"\(\d{4}\w?\)\.\s*(.+?)\.(?:\s|$)")
+
+
+def _title_from_unstructured(citation: str) -> str:
+    """Pull the title out of an APA-style "Author (Year). Title. Source" citation."""
+    match = UNSTRUCTURED_TITLE_PATTERN.search(citation)
+    return match.group(1).strip() if match else citation

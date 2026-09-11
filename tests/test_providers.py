@@ -95,3 +95,29 @@ def test_crossref_reference_fallback_preserves_unstructured_citations() -> None:
     assert references[0].doi == "10.2/reference"
     assert references[0].publication_year == 2020
     assert references[1].title.startswith("B. Author")
+
+
+def test_crossref_reference_extracts_title_from_apa_style_unstructured_citation() -> None:
+    client = FakeClient(
+        {
+            "message": {
+                "reference": [
+                    {
+                        "unstructured": (
+                            "Nielsen F. Å. (2011). A new evaluation of a word list for "
+                            "sentiment analysis in microblogs. ESWC2011 Workshop on "
+                            "“Making Sense of Microposts”: Big things come in small "
+                            "packages (pp. 93–98). Retrieved from "
+                            "http://arxiv.org/abs/1103.2903"
+                        )
+                    }
+                ]
+            }
+        }
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert references[0].title == (
+        "A new evaluation of a word list for sentiment analysis in microblogs"
+    )
