@@ -131,6 +131,7 @@ UNSTRUCTURED_CITATION_PATTERN = re.compile(
     r"^(?P<author>.*?)\(\s*(?P<year>\d{4})\w?\s*\)\.\s*(?P<title>.+?)\.(?:\s|$)"
 )
 URL_PATTERN = re.compile(r"https?://\S+")
+SURNAME_FIRST_PATTERN = re.compile(r"^(?P<surname>\S+),?\s+(?P<initials>(?:\S+\.\s*)+)$")
 
 
 @dataclass(slots=True, frozen=True)
@@ -151,6 +152,14 @@ def _parse_unstructured(citation: str) -> _ParsedCitation:
     return _ParsedCitation(
         title=match.group("title").strip(),
         year=match.group("year"),
-        author=match.group("author").strip() or None,
+        author=_reorder_surname_first(match.group("author").strip()) or None,
         url=url,
     )
+
+
+def _reorder_surname_first(author: str) -> str:
+    """Convert citation-style "Surname F. M." to this codebase's "F. M. Surname" convention."""
+    match = SURNAME_FIRST_PATTERN.match(author)
+    if not match:
+        return author
+    return f"{match.group('initials').strip()} {match.group('surname')}"

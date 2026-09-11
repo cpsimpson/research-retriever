@@ -122,5 +122,5 @@ def test_crossref_reference_extracts_title_from_apa_style_unstructured_citation(
         "A new evaluation of a word list for sentiment analysis in microblogs"
     )
     assert references[0].publication_year == 2011
-    assert references[0].authors[0].name == "Nielsen F. Å."
+    assert references[0].authors[0].name == "F. Å. Nielsen"
     assert references[0].url == "http://arxiv.org/abs/1103.2903"
