@@ -11,3 +11,5 @@ build/
 .env
 config.toml
 *.sqlite3
+.idea/
+*.traineddata
