@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from research_retriever.http import JsonHttpClient
@@ -91,20 +92,23 @@ class CrossrefProvider:
         for index, reference in enumerate(message.get("reference") or [], 1):
             raw_doi = reference.get("DOI") or reference.get("doi")
             unstructured = reference.get("unstructured")
+            parsed = _parse_unstructured(unstructured) if unstructured else _ParsedCitation()
             title = (
                 reference.get("article-title")
                 or reference.get("volume-title")
                 or reference.get("series-title")
-                or (_title_from_unstructured(unstructured) if unstructured else None)
+                or parsed.title
                 or f"Unresolved reference {index} from {normalize_doi(doi)}"
             )
-            raw_year = str(reference.get("year") or "")
+            raw_year = str(reference.get("year") or parsed.year or "")
+            raw_author = reference.get("author") or parsed.author
             output.append(
                 Paper(
                     title=str(title)[:500],
-                    authors=[Author(str(reference["author"]))] if reference.get("author") else [],
+                    authors=[Author(str(raw_author))] if raw_author else [],
                     publication_year=int(raw_year) if raw_year.isdigit() else None,
                     doi=normalize_doi(str(raw_doi)) if raw_doi else None,
+                    url=parsed.url,
                     work_type=WorkType.JOURNAL_ARTICLE,
                     review_status=ReviewStatus.UNKNOWN,
                     record_status=RecordStatus.UNKNOWN,
@@ -123,10 +127,30 @@ def _as_list(value: Any) -> Iterable[Any]:
     return value if isinstance(value, list) else [value]
 
 
-UNSTRUCTURED_TITLE_PATTERN = re.compile(r"\(\d{4}\w?\)\.\s*(.+?)\.(?:\s|$)")
+UNSTRUCTURED_CITATION_PATTERN = re.compile(
+    r"^(?P<author>.*?)\(\s*(?P<year>\d{4})\w?\s*\)\.\s*(?P<title>.+?)\.(?:\s|$)"
+)
+URL_PATTERN = re.compile(r"https?://\S+")
 
 
-def _title_from_unstructured(citation: str) -> str:
-    """Pull the title out of an APA-style "Author (Year). Title. Source" citation."""
-    match = UNSTRUCTURED_TITLE_PATTERN.search(citation)
-    return match.group(1).strip() if match else citation
+@dataclass(slots=True, frozen=True)
+class _ParsedCitation:
+    title: str | None = None
+    year: str | None = None
+    author: str | None = None
+    url: str | None = None
+
+
+def _parse_unstructured(citation: str) -> _ParsedCitation:
+    """Recover title/year/author/url from an APA-style "Author (Year). Title. Source" citation."""
+    url_match = URL_PATTERN.search(citation)
+    url = url_match.group(0).rstrip(").,;") if url_match else None
+    match = UNSTRUCTURED_CITATION_PATTERN.match(citation.strip())
+    if not match:
+        return _ParsedCitation(title=citation, url=url)
+    return _ParsedCitation(
+        title=match.group("title").strip(),
+        year=match.group("year"),
+        author=match.group("author").strip() or None,
+        url=url,
+    )
