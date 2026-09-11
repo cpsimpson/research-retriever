@@ -95,17 +95,19 @@ class CrossrefProvider:
             parsed = _parse_unstructured(unstructured) if unstructured else _ParsedCitation()
             title = (
                 reference.get("article-title")
+                or parsed.title
                 or reference.get("volume-title")
                 or reference.get("series-title")
-                or parsed.title
                 or f"Unresolved reference {index} from {normalize_doi(doi)}"
             )
             raw_year = str(reference.get("year") or parsed.year or "")
-            raw_author = reference.get("author") or parsed.author
+            raw_authors = parsed.authors or (
+                (str(reference["author"]),) if reference.get("author") else ()
+            )
             output.append(
                 Paper(
                     title=str(title)[:500],
-                    authors=[Author(str(raw_author))] if raw_author else [],
+                    authors=[Author(name) for name in raw_authors],
                     publication_year=int(raw_year) if raw_year.isdigit() else None,
                     doi=normalize_doi(str(raw_doi)) if raw_doi else None,
                     url=parsed.url,
@@ -132,18 +134,21 @@ UNSTRUCTURED_CITATION_PATTERN = re.compile(
 )
 URL_PATTERN = re.compile(r"https?://\S+")
 SURNAME_FIRST_PATTERN = re.compile(r"^(?P<surname>\S+),?\s+(?P<initials>(?:\S+\.\s*)+)$")
+AUTHOR_LIST_TOKEN_PATTERN = re.compile(
+    r"(?P<surname>[A-ZÀ-Þ][A-Za-zÀ-ÿ'-]+),?\s+(?P<initials>(?:[A-ZÀ-Þ]\.\s*)+)"
+)
 
 
 @dataclass(slots=True, frozen=True)
 class _ParsedCitation:
     title: str | None = None
     year: str | None = None
-    author: str | None = None
+    authors: tuple[str, ...] = ()
     url: str | None = None
 
 
 def _parse_unstructured(citation: str) -> _ParsedCitation:
-    """Recover title/year/author/url from an APA-style "Author (Year). Title. Source" citation."""
+    """Recover title/year/authors/url from an APA-style "Author (Year). Title. Source" citation."""
     url_match = URL_PATTERN.search(citation)
     url = url_match.group(0).rstrip(").,;") if url_match else None
     match = UNSTRUCTURED_CITATION_PATTERN.match(citation.strip())
@@ -152,9 +157,21 @@ def _parse_unstructured(citation: str) -> _ParsedCitation:
     return _ParsedCitation(
         title=match.group("title").strip(),
         year=match.group("year"),
-        author=_reorder_surname_first(match.group("author").strip()) or None,
+        authors=_parse_authors(match.group("author").strip()),
         url=url,
     )
+
+
+def _parse_authors(text: str) -> tuple[str, ...]:
+    """Extract "Surname, I. I." entries from an author list, reordered to "I. I. Surname"."""
+    matches = [
+        f"{match.group('initials').strip()} {match.group('surname')}"
+        for match in AUTHOR_LIST_TOKEN_PATTERN.finditer(text)
+    ]
+    if matches:
+        return tuple(matches)
+    reordered = _reorder_surname_first(text)
+    return (reordered,) if reordered else ()
 
 
 def _reorder_surname_first(author: str) -> str:

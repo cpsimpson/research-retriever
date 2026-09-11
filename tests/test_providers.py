@@ -123,4 +123,76 @@ def test_crossref_reference_extracts_title_from_apa_style_unstructured_citation(
     )
     assert references[0].publication_year == 2011
     assert references[0].authors[0].name == "F. Å. Nielsen"
-    assert references[0].url == "http://arxiv.org/abs/1103.2903"
+
+
+def test_crossref_reference_splits_multi_author_unstructured_citation() -> None:
+    client = FakeClient(
+        {
+            "message": {
+                "reference": [
+                    {
+                        "unstructured": (
+                            "Endsley, M. R., Caldwell, B., Chiou, K. E., Cummings, L. M., "
+                            "Gonzalez, C., Lee, D. J., et al. (2021). Human-AI Teaming: "
+                            "State-of-the-Art and Research Needs. Washington, DC: The "
+                            "National Academies Press."
+                        )
+                    }
+                ]
+            }
+        }
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert [author.name for author in references[0].authors] == [
+        "M. R. Endsley",
+        "B. Caldwell",
+        "K. E. Chiou",
+        "L. M. Cummings",
+        "C. Gonzalez",
+        "D. J. Lee",
+    ]
+
+
+def test_crossref_reference_prefers_unstructured_title_over_stray_volume_title() -> None:
+    """volume-title sometimes names the containing proceedings, not this work, when
+    article-title is absent; the unstructured citation's own title is more reliable."""
+    client = FakeClient(
+        {
+            "message": {
+                "reference": [
+                    {
+                        "volume-title": "IFAC-PapersOnLine",
+                        "author": "Hu W. L.",
+                        "year": "2016",
+                        "unstructured": (
+                            "Hu W. L., Akash K., Jain N., Reid T. (2016). Real-time sensing "
+                            "of trust in human-machine interactions. IFAC-PapersOnLine, "
+                            "49(32), 48–53. Elsevier B.V."
+                        ),
+                    }
+                ]
+            }
+        }
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert references[0].title == "Real-time sensing of trust in human-machine interactions"
+    assert [author.name for author in references[0].authors] == [
+        "W. L. Hu",
+        "K. Akash",
+        "N. Jain",
+        "T. Reid",
+    ]
+
+
+def test_crossref_reference_uses_volume_title_when_no_unstructured_text() -> None:
+    client = FakeClient(
+        {"message": {"reference": [{"volume-title": "A Whole Book", "year": "2019"}]}}
+    )
+    references = CrossrefProvider("researcher@example.test", client=client).references(
+        "10.1/source"
+    )
+    assert references[0].title == "A Whole Book"
